@@ -1,0 +1,25 @@
+{
+  "name": "denturecare",
+  "version": "1.0.0",
+  "private": true,
+  "description": "틀니 관리 도우미 - 일일 관리 루틴·리콜 알림·보호자 연동 (네이티브 앱)",
+  "scripts": {
+    "cap:sync": "cap sync",
+    "add:ios": "cap add ios",
+    "add:android": "cap add android",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/local-notifications": "^6.1.0",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/android": "^6.1.2"
+  }
+}
