@@ -17,17 +17,17 @@
 
 사용법: 대화에서 "planner 에이전트로 MVP 범위 다시 정리해줘"처럼 이름을 지정해 호출.
 
-## Phase 0 — 기반 정리 (지금 바로) 🔴
-- [ ] **git init + GitHub 저장소 생성** (`devops`) — 지금 버전 관리가 전혀 없어서 가장 위험
-- [ ] .gitignore 작성, 초기 커밋 (프로토타입 v12 포함)
-- [ ] 프로토타입 v12 기준 **MVP 기능 확정** (`planner`) — 정식 개발에 가져갈 것 / 버릴 것 구분
+## Phase 0 — 기반 정리 ✅ 완료 (2026-07-13)
+- [x] **git init + GitHub 저장소 생성** (github.com/MihyunShim/MYUN)
+- [x] .gitignore 작성, 초기 커밋 (프로토타입 v12 포함)
+- [x] 프로토타입 v12 기준 **MVP 기능 확정** — A1(사용자)+A2(가족)만, A3/A5는 2차
 
 ## Phase 1 — 설계 (1~2주)
-- [ ] 프로토타입 역설계: 화면 목록 + 이동 흐름 문서화 (`architect`)
-- [ ] 사용자 시나리오 2종: 틀니 사용자 / 보호자 (`architect`)
-- [ ] 데이터 모델: 테이블 정의서 + ERD (`architect`)
-- [ ] API 명세 작성 (`architect`)
-- [ ] 백엔드 스택 확정: Supabase vs Firebase vs 자체 서버 (`architect` + `backend-dev`)
+- [x] 프로토타입 역설계: 화면 목록 + 이동 흐름 문서화 → docs/설계/01
+- [x] 사용자 시나리오: 틀니 사용자/보호자 5종 → docs/설계/02
+- [x] 데이터 모델: 테이블 7개 + ERD → docs/설계/03
+- [x] API 명세 + 접근 권한(RLS) 규칙 → docs/설계/04
+- [x] 기술 스택 확정: React+Vite+TS / Supabase / Vercel → docs/설계/00
 
 ## Phase 2 — 기초 개발 (2~4주)
 - [ ] DB 테이블 생성 + 마이그레이션 (`backend-dev`)
