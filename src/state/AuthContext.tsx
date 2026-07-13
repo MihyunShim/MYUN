@@ -8,7 +8,8 @@ interface AuthState {
   loading: boolean;
   session: Session | null;
   profile: Profile | null;
-  onboarded: boolean; // 루틴 설정 완료 여부
+  onboarded: boolean; // A1: 루틴 설정 완료 / A2: 어르신 연결 완료
+  elderId: string | null; // A2 전용: 연결된 어르신의 id
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -20,20 +21,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [onboarded, setOnboarded] = useState(false);
+  const [elderId, setElderId] = useState<string | null>(null);
 
   const loadUserData = useCallback(async (s: Session | null) => {
     if (!s) {
       setProfile(null);
       setOnboarded(false);
+      setElderId(null);
       return;
     }
     const { data: p } = await db().from('profiles').select('*').eq('id', s.user.id).single();
-    setProfile((p as Profile) ?? null);
-    const { count } = await db()
-      .from('routines')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', s.user.id);
-    setOnboarded((count ?? 0) > 0);
+    const prof = (p as Profile) ?? null;
+    setProfile(prof);
+
+    if (prof?.role === 'A2') {
+      // 보호자: 활성 연결이 있으면 온보딩 완료
+      const { data: link } = await db()
+        .from('care_links')
+        .select('elder_id')
+        .eq('guardian_id', s.user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+      setElderId(link?.elder_id ?? null);
+      setOnboarded(!!link);
+    } else {
+      // 틀니 사용자: 루틴이 설정돼 있으면 온보딩 완료
+      const { count } = await db()
+        .from('routines')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', s.user.id);
+      setElderId(null);
+      setOnboarded((count ?? 0) > 0);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -56,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ loading, session, profile, onboarded, refresh, signOut }}>
+    <AuthContext.Provider value={{ loading, session, profile, onboarded, elderId, refresh, signOut }}>
       {children}
     </AuthContext.Provider>
   );

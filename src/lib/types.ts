@@ -30,6 +30,22 @@ export interface RoutineLog {
 
 export type SlotId = 'A00' | 'A01' | 'A02' | 'A03' | 'A04';
 
+export interface Alert {
+  id: string;
+  elder_id: string;
+  type: 'emergency' | 'missed' | 'recall';
+  detail: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+// A1 응급 도움 요청 증상 목록 (프로토타입 계승)
+export const EMERGENCY_TYPES = [
+  { id: 'gum_pain', label: '잇몸이 아파요', icon: '😖' },
+  { id: 'denture_loose', label: '틀니가 잘 안 맞아요', icon: '😕' },
+  { id: 'denture_broken', label: '틀니가 깨졌거나 잃어버렸어요', icon: '💔' },
+] as const;
+
 // 기본 루틴 5종 (프로토타입 v12 계승 — 온보딩에서 시간 수정 가능)
 export const DEFAULT_ROUTINES: {
   slot: SlotId;
