@@ -1,9 +1,10 @@
+import { useEffect } from 'react';
 import { isSupabaseConfigured } from './lib/supabase';
 import { AuthProvider, useAuth } from './state/AuthContext';
 import Auth from './screens/Auth';
 import Onboarding from './screens/Onboarding';
 import OnboardingA2 from './screens/OnboardingA2';
-import HomeA1 from './screens/HomeA1';
+import A1Shell from './screens/A1Shell';
 import HomeA2 from './screens/HomeA2';
 import { Screen, Title, Splash } from './components/ui';
 
@@ -11,12 +12,20 @@ import { Screen, Title, Splash } from './components/ui';
 function Router() {
   const { loading, session, profile, onboarded } = useAuth();
 
+  // 설정의 글자 크기를 앱 전체에 반영 (고령자 접근성)
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--font-body',
+      profile?.font_size_mode === 'large' ? '22px' : '18px',
+    );
+  }, [profile?.font_size_mode]);
+
   if (loading) return <Splash text="저장된 정보를 불러오는 중..." />;
   if (!session) return <Auth />;
   if (!profile) return <Splash text="프로필을 준비하는 중..." />;
 
   if (profile.role === 'A1') {
-    return onboarded ? <HomeA1 /> : <Onboarding />;
+    return onboarded ? <A1Shell /> : <Onboarding />;
   }
   return onboarded ? <HomeA2 /> : <OnboardingA2 />;
 }
