@@ -1,0 +1,39 @@
+/* 디자인 토큰 — 프로토타입 v12의 색상 체계 계승 (docs/설계/01 참고) */
+:root {
+  --bg: #FAF7F2;
+  --surface: #FFFFFF;
+  --primary: #1E5F74;
+  --primary-light: #E6F0F2;
+  --accent: #D97706;
+  --danger: #B91C1C;
+  --success: #15803D;
+  --warning: #CA8A04;
+  --text: #1F2937;
+  --text-sub: #4B5563;
+  --border: #E5E7EB;
+
+  /* 고령자 접근성: 기본 글자 크기 크게 */
+  --font-body: 18px;
+  --touch-min: 48px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  min-height: var(--touch-min);
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 12px;
+}
