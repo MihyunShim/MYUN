@@ -11,7 +11,10 @@ export function db(): SupabaseClient {
 export function friendlyError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요. 다시 확인해주세요.';
-  if (m.includes('already registered')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';
+  if (m.includes('already') && m.includes('registered')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';
+  if (m.includes('email_exists') || m.includes('user_already_exists')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';
+  if (m.includes('rate limit')) return '잠시 요청이 많아요. 1시간 후에 다시 시도해주세요.';
+  if (m.includes('email not confirmed')) return '이메일 확인이 아직 안 됐어요. 메일함을 확인해주세요.';
   if (m.includes('password should be at least')) return '비밀번호는 6자 이상으로 만들어주세요.';
   if (m.includes('valid email')) return '이메일 주소를 다시 확인해주세요.';
   if (m.includes('fetch') || m.includes('network')) return '인터넷 연결을 확인해주세요.';
