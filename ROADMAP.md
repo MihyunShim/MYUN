@@ -29,8 +29,9 @@
 - [x] API 명세 + 접근 권한(RLS) 규칙 → docs/설계/04
 - [x] 기술 스택 확정: React+Vite+TS / Supabase / Vercel → docs/설계/00
 
-## Phase 2 — 기초 개발 (2~4주)
-- [ ] DB 테이블 생성 + 마이그레이션 (`backend-dev`)
+## Phase 2 — 기초 개발 (진행 중)
+- [x] 개발 환경 구축: Node.js LTS + React/Vite/TS + Supabase 연결 검증 (2026-07-13)
+- [x] DB 테이블 생성 + 마이그레이션 (Supabase, 2026-07-13)
 - [ ] 핵심 API: 루틴 CRUD, 체크 기록, 리콜 일정 (`backend-dev`)
 - [ ] 프로토타입 → 정식 프론트 코드 전환 (`frontend-dev`)
 - [ ] 프론트-백엔드 연동 (`frontend-dev`)
