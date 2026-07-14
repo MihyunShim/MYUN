@@ -2,7 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { db } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { SLOT_DETAIL, todayStr, EMERGENCY_TYPES, type Routine, type RoutineLog } from '../lib/types';
+import { scheduleRoutines } from '../lib/notifications';
+import { pickTodayTip, type DailyTip } from '../lib/tips';
 import { Screen, Card, BigButton, Splash } from '../components/ui';
+
+const TIP_DATE_KEY = 'denturecare:tip-shown-date';
 
 // A1 홈: 오늘 할 일 (docs/설계/01 A1-1, A1-2 통합 초기 버전)
 export default function HomeA1() {
@@ -13,6 +17,7 @@ export default function HomeA1() {
   const [checking, setChecking] = useState<string | null>(null);
   const [sosOpen, setSosOpen] = useState(false);
   const [sosSent, setSosSent] = useState(false);
+  const [tip, setTip] = useState<DailyTip | null>(null);
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -27,6 +32,20 @@ export default function HomeA1() {
   }, [session]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 알림 예약 갱신 + 하루 한 번 정보 팝업
+  useEffect(() => {
+    if (routines.length === 0) return;
+    scheduleRoutines(routines); // 권한이 있으면 오늘 알림 예약
+    if (localStorage.getItem(TIP_DATE_KEY) !== todayStr()) {
+      setTip(pickTodayTip(profile?.birth_year ?? null));
+    }
+  }, [routines, profile?.birth_year]);
+
+  const closeTip = () => {
+    localStorage.setItem(TIP_DATE_KEY, todayStr());
+    setTip(null);
+  };
 
   if (loading) return <Splash text="오늘 할 일을 불러오는 중..." />;
 
@@ -58,6 +77,33 @@ export default function HomeA1() {
 
   return (
     <Screen>
+      {/* 오늘의 정보 팝업 (하루 1회) */}
+      {tip && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: 20, padding: 24,
+            maxWidth: 420, width: '100%',
+          }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+              💡 오늘의 정보 · {tip.category}
+            </p>
+            <p style={{ fontSize: 40, textAlign: 'center', margin: '10px 0' }}>{tip.emoji}</p>
+            <p style={{ fontSize: 21, fontWeight: 800, textAlign: 'center' }}>{tip.title}</p>
+            <p style={{ color: 'var(--text)', textAlign: 'center', margin: '12px 0' }}>{tip.mainMessage}</p>
+            <div style={{ background: 'var(--primary-light)', borderRadius: 12, padding: '10px 14px', marginBottom: 8 }}>
+              <p style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 15 }}>{tip.detailLabel}</p>
+              <p style={{ fontWeight: 700 }}>{tip.detail}</p>
+            </div>
+            <p style={{ color: 'var(--text-sub)', fontSize: 15, marginBottom: 16 }}>💬 {tip.tip}</p>
+            <BigButton onClick={closeTip}>알겠어요</BigButton>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <p style={{ color: 'var(--text-sub)' }}>{dateLabel}</p>
