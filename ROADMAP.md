@@ -45,10 +45,10 @@
 - [ ] 알림: Capacitor local-notifications (루틴/리콜)
 - [ ] 각 기능 완료 시마다 `qa-tester` 검증
 
-## Phase 4 — 배포 (1주)
-- [ ] 웹(PWA) Vercel/Cloudflare Pages 배포 (`devops`)
+## Phase 4 — 배포 ✅ (2026-07-14)
+- [x] 웹 Vercel 배포: https://myun-hazel.vercel.app (깃허브 push 시 자동 재배포)
 - [ ] 브랜치 전략 적용: main(운영) / dev(개발)
-- [ ] 개발/운영 환경 변수 분리
+- [x] 환경 변수 분리: 로컬 .env / Vercel 환경변수
 
 ## Phase 5 — 출시
 - [ ] 도메인 연결 + HTTPS (`devops`)
