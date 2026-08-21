@@ -33,7 +33,7 @@ export default function Onboarding() {
       const { error: e1 } = await db().from('profiles')
         .update({ name: name.trim(), birth_year: parseInt(birthYear) || null })
         .eq('id', uid);
-      if (e1) { setError(friendlyError(e1.message)); return; }
+      if (e1) { setError(friendlyError(e1)); return; }
 
       const { error: e2 } = await db().from('dentures').upsert({
         user_id: uid,
@@ -42,14 +42,14 @@ export default function Onboarding() {
         clinic_name: clinicName.trim() || null,
         clinic_phone: clinicPhone.trim() || null,
       }, { onConflict: 'user_id' });
-      if (e2) { setError(friendlyError(e2.message)); return; }
+      if (e2) { setError(friendlyError(e2)); return; }
 
       const rows = DEFAULT_ROUTINES.map((r, i) => ({
         user_id: uid, slot: r.slot, alarm_time: times[i], label: r.label,
       }));
       const { error: e3 } = await db().from('routines')
         .upsert(rows, { onConflict: 'user_id,slot' });
-      if (e3) { setError(friendlyError(e3.message)); return; }
+      if (e3) { setError(friendlyError(e3)); return; }
 
       await refresh(); // onboarded = true 가 되어 홈으로 이동
     } finally {

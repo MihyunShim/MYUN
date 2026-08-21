@@ -22,7 +22,7 @@ export default function OnboardingA2() {
         code: code.trim(),
         rel: relation,
       });
-      if (err) { setError(friendlyError(err.message)); return; }
+      if (err) { setError(friendlyError(err)); return; }
       await refresh(); // 연결 완료 → 보호자 홈으로
     } finally {
       setBusy(false);

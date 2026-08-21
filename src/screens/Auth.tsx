@@ -26,14 +26,14 @@ export default function Auth() {
           password,
           options: { data: { role, name: name.trim() } },
         });
-        if (err) { setError(friendlyError(err.message)); return; }
+        if (err) { setError(friendlyError(err)); return; }
         if (!data.session) { setNeedConfirm(true); return; } // 이메일 확인이 켜져 있는 경우
       } else {
         const { error: err } = await db().auth.signInWithPassword({
           email: email.trim(),
           password,
         });
-        if (err) { setError(friendlyError(err.message)); return; }
+        if (err) { setError(friendlyError(err)); return; }
       }
     } finally {
       setBusy(false);
