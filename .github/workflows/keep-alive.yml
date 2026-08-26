@@ -1,0 +1,33 @@
+# Supabase 무료 플랜은 7일간 사용이 없으면 프로젝트를 자동 일시정지(pause)합니다.
+# 매일 한 번 서버에 가벼운 요청을 보내 "사용 중"으로 유지합니다.
+#
+# 여기 들어있는 주소와 키는 '공개용(publishable)' 값으로,
+# 이미 배포된 웹 앱에 포함되어 누구나 볼 수 있는 값입니다. 새로 노출되는 비밀은 없습니다.
+# 실제 보안은 데이터베이스의 접근 규칙(RLS)이 담당합니다.
+
+name: Supabase 깨우기
+
+on:
+  schedule:
+    - cron: '0 0 * * *'    # 매일 오전 9시 (한국 시간)
+  workflow_dispatch:        # Actions 탭에서 수동 실행도 가능
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase에 요청 보내기
+        run: |
+          URL="https://pjmgzbmijklxwbwgkqrw.supabase.co/rest/v1/profiles?select=id&limit=1"
+          KEY="sb_publishable_dc9WidDvFaGFatHo3UyPBQ__ighpmCB"
+
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$URL" -H "apikey: $KEY")
+          echo "응답 코드: $CODE"
+
+          if [ "$CODE" = "200" ]; then
+            echo "✅ 서버 정상 — 깨어 있습니다"
+          else
+            echo "⚠️ 서버 응답 이상 (HTTP $CODE)"
+            echo "일시정지되었을 수 있습니다. Supabase 대시보드에서 Restore project를 눌러주세요."
+            exit 1
+          fi
