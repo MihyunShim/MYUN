@@ -22,3 +22,7 @@ android/app/build/
 ios/App/Pods/
 ios/App/build/
 ios/DerivedData/
+
+# 사업 문서는 공개 저장소에 올리지 않음 (로컬 보관)
+*.docx
+*.pptx
