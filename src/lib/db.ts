@@ -33,6 +33,9 @@ export function friendlyError(err: unknown): string {
     return '서버에 연결할 수 없어요. 인터넷 연결을 확인하시거나, 잠시 후 다시 시도해주세요.';
   }
 
+  if (m.includes('provider is not enabled') || m.includes('unsupported provider')) {
+    return '카카오 로그인은 아직 준비 중이에요. 이메일로 가입해주세요.';
+  }
   if (m.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요. 다시 확인해주세요.';
   if (m.includes('already') && m.includes('registered')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';
   if (m.includes('email_exists') || m.includes('user_already_exists')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';

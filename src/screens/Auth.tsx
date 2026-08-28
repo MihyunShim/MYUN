@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { db, friendlyError } from '../lib/db';
+import { kakaoLogin, rememberPendingRole } from '../lib/kakao';
 import { Screen, Title, Card, BigButton, Field, ErrorBox } from '../components/ui';
 
 type Mode = 'welcome' | 'role' | 'signup' | 'login';
@@ -39,6 +40,24 @@ export default function Auth() {
       setBusy(false);
     }
   };
+
+  // 카카오 로그인: 가입 경로면 선택한 역할을 보관해뒀다가 로그인 후 프로필에 반영
+  const kakao = async () => {
+    setError('');
+    if (mode === 'signup') rememberPendingRole(role);
+    const msg = await kakaoLogin();
+    if (msg) setError(friendlyError(msg));
+  };
+
+  const KakaoButton = () => (
+    <button onClick={kakao} style={{
+      width: '100%', minHeight: 56, fontSize: 19, fontWeight: 700,
+      background: '#FEE500', color: '#191919', borderRadius: 12,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    }}>
+      💬 카카오로 시작하기
+    </button>
+  );
 
   if (needConfirm) {
     return (
@@ -98,6 +117,12 @@ export default function Auth() {
       <BigButton onClick={submit} disabled={busy || !email || !password}>
         {busy ? '잠시만요...' : mode === 'signup' ? '가입하기' : '로그인'}
       </BigButton>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        <span style={{ color: 'var(--text-sub)', fontSize: 15 }}>또는</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      </div>
+      <KakaoButton />
       <BigButton variant="ghost" onClick={() => setMode(mode === 'signup' ? 'role' : 'welcome')}>뒤로</BigButton>
     </Screen>
   );

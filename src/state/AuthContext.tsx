@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { db } from '../lib/db';
+import { applyPendingRole } from '../lib/kakao';
 import type { Profile } from '../lib/types';
 
 // 앱 전체에서 "지금 누가 로그인해 있는가"를 공유하는 저장소
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setElderId(null);
       return;
     }
+    await applyPendingRole(s.user.id); // 카카오 가입 시 골라둔 역할(A1/A2) 반영
     const { data: p } = await db().from('profiles').select('*').eq('id', s.user.id).single();
     const prof = (p as Profile) ?? null;
     setProfile(prof);
