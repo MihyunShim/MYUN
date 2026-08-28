@@ -5,7 +5,7 @@ import Auth from './screens/Auth';
 import Onboarding from './screens/Onboarding';
 import OnboardingA2 from './screens/OnboardingA2';
 import A1Shell from './screens/A1Shell';
-import HomeA2 from './screens/HomeA2';
+import A2Shell from './screens/A2Shell';
 import { Screen, Title, Splash } from './components/ui';
 
 // 화면 라우팅: 로그인 여부 → 역할 → 온보딩 여부에 따라 보여줄 화면 결정 (docs/설계/01 흐름도)
@@ -27,7 +27,7 @@ function Router() {
   if (profile.role === 'A1') {
     return onboarded ? <A1Shell /> : <Onboarding />;
   }
-  return onboarded ? <HomeA2 /> : <OnboardingA2 />;
+  return onboarded ? <A2Shell /> : <OnboardingA2 />;
 }
 
 export default function App() {
