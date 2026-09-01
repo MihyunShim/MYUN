@@ -63,6 +63,24 @@ export default function HomeA1() {
     setChecking(null);
   };
 
+  // 완료 취소 (프로토타입 v12.2 계승): 오늘 기록만 삭제
+  const uncheck = async (slot: string) => {
+    if (!session) return;
+    setChecking(slot);
+    await db().from('routine_logs').delete()
+      .eq('user_id', session.user.id).eq('slot', slot).eq('log_date', todayStr());
+    await load();
+    setChecking(null);
+  };
+
+  // 홈에서 바로 시간 변경 (프로토타입 계승): 즉시 저장 + 알림 재예약
+  const changeTime = async (r: Routine, time: string) => {
+    const nextR = routines.map((x) => (x.id === r.id ? { ...x, alarm_time: time } : x));
+    setRoutines(nextR);
+    await db().from('routines').update({ alarm_time: time }).eq('id', r.id);
+    await scheduleRoutines(nextR);
+  };
+
   // 응급 도움 요청 → 보호자에게 알림 전송 (alerts 테이블)
   const sendSOS = async (typeId: string) => {
     if (!session) return;
@@ -195,16 +213,36 @@ export default function HomeA1() {
           const isDone = doneSlots.has(r.slot);
           return (
             <Card key={r.slot} style={{
-              display: 'flex', alignItems: 'center', gap: 14,
-              padding: '14px 16px', opacity: isDone ? 0.75 : 1,
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '14px 16px', opacity: isDone ? 0.85 : 1,
             }}>
               <span style={{ fontSize: 26 }}>{isDone ? '✅' : '⬜'}</span>
               <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 700 }}>{r.alarm_time.slice(0, 5)} · {r.label}</p>
-                <p style={{ color: 'var(--text-sub)', fontSize: 16 }}>{SLOT_DETAIL[r.slot].action}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <input
+                    type="time"
+                    value={r.alarm_time.slice(0, 5)}
+                    onChange={(e) => changeTime(r, e.target.value)}
+                    style={{
+                      fontSize: 16, fontWeight: 700, padding: '4px 8px',
+                      border: '1.5px solid var(--primary)', borderRadius: 99,
+                      background: 'var(--primary-light)', color: 'var(--primary)',
+                    }}
+                  />
+                  <span style={{ fontWeight: 700 }}>{r.label}</span>
+                </div>
+                <p style={{ color: 'var(--text-sub)', fontSize: 16, marginTop: 4 }}>{SLOT_DETAIL[r.slot].action}</p>
               </div>
-              {!isDone && (
-                <button onClick={() => check(r.slot)} style={{
+              {isDone ? (
+                <button onClick={() => uncheck(r.slot)} disabled={checking === r.slot} style={{
+                  background: 'var(--surface)', color: 'var(--danger)',
+                  border: '2px solid #FECACA', fontWeight: 700,
+                  padding: '0 14px', minHeight: 48, fontSize: 16,
+                }}>
+                  {checking === r.slot ? '...' : '↩ 되돌리기'}
+                </button>
+              ) : (
+                <button onClick={() => check(r.slot)} disabled={checking === r.slot} style={{
                   background: 'var(--primary-light)', color: 'var(--primary)',
                   fontWeight: 700, padding: '0 18px', minHeight: 48,
                 }}>
