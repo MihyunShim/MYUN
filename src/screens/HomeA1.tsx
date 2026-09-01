@@ -57,7 +57,8 @@ export default function HomeA1() {
     if (!session || doneSlots.has(slot)) return;
     setChecking(slot);
     // 서버에 기록 — 하루 1번 제약(unique)이 중복을 막아줌
-    await db().from('routine_logs').insert({ user_id: session.user.id, slot });
+    // log_date를 폰의 날짜로 명시 (서버는 UTC라 자정~아침 9시에 날짜가 어긋남)
+    await db().from('routine_logs').insert({ user_id: session.user.id, slot, log_date: todayStr() });
     await load();
     setChecking(null);
   };
