@@ -18,6 +18,7 @@ export default function HomeA1() {
   const [sosOpen, setSosOpen] = useState(false);
   const [sosSent, setSosSent] = useState(false);
   const [tip, setTip] = useState<DailyTip | null>(null);
+  const [detail, setDetail] = useState<Routine | null>(null); // 항목 상세(행동 실행) 화면
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -61,6 +62,7 @@ export default function HomeA1() {
     await db().from('routine_logs').insert({ user_id: session.user.id, slot, log_date: todayStr() });
     await load();
     setChecking(null);
+    setDetail(null); // 상세 화면에서 완료하면 홈으로
   };
 
   // 완료 취소 (프로토타입 v12.2 계승): 오늘 기록만 삭제
@@ -71,6 +73,7 @@ export default function HomeA1() {
       .eq('user_id', session.user.id).eq('slot', slot).eq('log_date', todayStr());
     await load();
     setChecking(null);
+    setDetail(null); // 취소 후 홈으로
   };
 
   // 홈에서 바로 시간 변경 (프로토타입 계승): 즉시 저장 + 알림 재예약
@@ -79,6 +82,7 @@ export default function HomeA1() {
     setRoutines(nextR);
     await db().from('routines').update({ alarm_time: time }).eq('id', r.id);
     await scheduleRoutines(nextR);
+    setDetail((d) => (d && d.id === r.id ? { ...d, alarm_time: time } : d));
   };
 
   // 응급 도움 요청 → 보호자에게 알림 전송 (alerts 테이블)
@@ -93,6 +97,69 @@ export default function HomeA1() {
 
   const today = new Date();
   const dateLabel = `${today.getMonth() + 1}월 ${today.getDate()}일 ${'일월화수목금토'[today.getDay()]}요일`;
+
+  // ===== 항목 상세 화면 (프로토타입 '지금 해야 할 일' 계승) =====
+  if (detail) {
+    const isDone = doneSlots.has(detail.slot);
+    return (
+      <Screen>
+        <button onClick={() => setDetail(null)} style={{
+          alignSelf: 'flex-start', background: 'none', color: 'var(--primary)',
+          fontWeight: 700, fontSize: 18, minHeight: 44, padding: 0,
+        }}>
+          ← 뒤로
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{
+            background: '#FDF1E3', color: 'var(--accent)', fontWeight: 800,
+            padding: '8px 14px', borderRadius: 99, fontSize: 17,
+          }}>
+            {detail.label}
+          </span>
+          <input
+            type="time"
+            value={detail.alarm_time.slice(0, 5)}
+            onChange={(e) => changeTime(detail, e.target.value)}
+            style={{
+              fontSize: 17, fontWeight: 800, padding: '6px 12px',
+              border: '1.5px solid var(--primary)', borderRadius: 99,
+              background: 'var(--primary-light)', color: 'var(--primary)',
+            }}
+          />
+        </div>
+
+        <Card style={{ textAlign: 'center', padding: 28 }}>
+          <p style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.5 }}>
+            {SLOT_DETAIL[detail.slot].action}
+          </p>
+          <p style={{ color: 'var(--text-sub)', marginTop: 10, fontSize: 18 }}>
+            🧴 {SLOT_DETAIL[detail.slot].tool}
+          </p>
+        </Card>
+
+        {isDone ? (<>
+          <Card style={{ background: '#F0FDF4', borderColor: 'var(--success)', textAlign: 'center' }}>
+            <p style={{ fontWeight: 800, color: 'var(--success)', fontSize: 19 }}>✅ 이미 완료한 항목이에요</p>
+          </Card>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <BigButton onClick={() => setDetail(null)}>돌아가기</BigButton>
+            <button onClick={() => uncheck(detail.slot)} disabled={checking === detail.slot} style={{
+              background: 'var(--surface)', color: 'var(--danger)',
+              border: '2px solid #FECACA', fontWeight: 700, fontSize: 18,
+              minHeight: 56, borderRadius: 12,
+            }}>
+              {checking === detail.slot ? '...' : '↩ 완료 취소'}
+            </button>
+          </div>
+        </>) : (
+          <BigButton onClick={() => check(detail.slot)} disabled={checking === detail.slot}>
+            {checking === detail.slot ? '기록 중...' : '했어요 ✓'}
+          </BigButton>
+        )}
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -214,34 +281,16 @@ export default function HomeA1() {
           return (
             <Card key={r.slot} style={{
               display: 'flex', alignItems: 'center', gap: 12,
-              padding: '14px 16px', opacity: isDone ? 0.85 : 1,
+              padding: '14px 16px', opacity: isDone ? 0.85 : 1, cursor: 'pointer',
             }}>
-              <span style={{ fontSize: 26 }}>{isDone ? '✅' : '⬜'}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <input
-                    type="time"
-                    value={r.alarm_time.slice(0, 5)}
-                    onChange={(e) => changeTime(r, e.target.value)}
-                    style={{
-                      fontSize: 16, fontWeight: 700, padding: '4px 8px',
-                      border: '1.5px solid var(--primary)', borderRadius: 99,
-                      background: 'var(--primary-light)', color: 'var(--primary)',
-                    }}
-                  />
-                  <span style={{ fontWeight: 700 }}>{r.label}</span>
+              <div onClick={() => setDetail(r)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                <span style={{ fontSize: 26 }}>{isDone ? '✅' : '⬜'}</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 700 }}>{r.alarm_time.slice(0, 5)} · {r.label} <span style={{ color: 'var(--text-sub)', fontWeight: 400, fontSize: 15 }}>›</span></p>
+                  <p style={{ color: 'var(--text-sub)', fontSize: 16 }}>{SLOT_DETAIL[r.slot].action}</p>
                 </div>
-                <p style={{ color: 'var(--text-sub)', fontSize: 16, marginTop: 4 }}>{SLOT_DETAIL[r.slot].action}</p>
               </div>
-              {isDone ? (
-                <button onClick={() => uncheck(r.slot)} disabled={checking === r.slot} style={{
-                  background: 'var(--surface)', color: 'var(--danger)',
-                  border: '2px solid #FECACA', fontWeight: 700,
-                  padding: '0 14px', minHeight: 48, fontSize: 16,
-                }}>
-                  {checking === r.slot ? '...' : '↩ 되돌리기'}
-                </button>
-              ) : (
+              {!isDone && (
                 <button onClick={() => check(r.slot)} disabled={checking === r.slot} style={{
                   background: 'var(--primary-light)', color: 'var(--primary)',
                   fontWeight: 700, padding: '0 18px', minHeight: 48,
