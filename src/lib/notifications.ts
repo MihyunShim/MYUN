@@ -44,6 +44,7 @@ export async function scheduleRoutines(routines: Routine[]): Promise<void> {
           id: i + 1,
           title: `${r.label} 틀니 관리 시간이에요`,
           body: SLOT_DETAIL[r.slot].action,
+          sound: 'default', // 기본 알림음 재생 (없으면 조용한 배너만 뜸)
           schedule: Capacitor.isNativePlatform()
             ? { on: { hour, minute }, allowWhileIdle: true } // 매일 반복
             : { at: nextOccurrence(hour, minute) },          // 웹: 다음 1회
