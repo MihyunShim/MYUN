@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { db, friendlyError } from '../lib/db';
-import { kakaoLogin, rememberPendingRole } from '../lib/kakao';
+import { kakaoLogin, rememberPendingRole, clearPendingRole } from '../lib/kakao';
 import { Screen, Title, Card, BigButton, Field, ErrorBox } from '../components/ui';
+import { AppInformation } from '../components/AccountActions';
 
 type Mode = 'welcome' | 'role' | 'signup' | 'login';
 
@@ -20,8 +22,10 @@ export default function Auth() {
     setError('');
     setBusy(true);
     try {
+      clearPendingRole();
       if (mode === 'signup') {
         if (!name.trim()) { setError('이름을 입력해주세요.'); return; }
+        if (password.length < 6) { setError('비밀번호는 6자 이상으로 만들어주세요.'); return; }
         const { data, error: err } = await db().auth.signUp({
           email: email.trim(),
           password,
@@ -36,7 +40,8 @@ export default function Auth() {
         });
         if (err) { setError(friendlyError(err)); return; }
       }
-    } finally {
+    } catch (err) { setError(friendlyError(err)); }
+    finally {
       setBusy(false);
     }
   };
@@ -45,8 +50,11 @@ export default function Auth() {
   const kakao = async () => {
     setError('');
     if (mode === 'signup') rememberPendingRole(role);
-    const msg = await kakaoLogin();
-    if (msg) setError(friendlyError(msg));
+    else clearPendingRole();
+    try {
+      const msg = await kakaoLogin();
+      if (msg) setError(friendlyError(msg));
+    } catch (err) { setError(friendlyError(err)); }
   };
 
   const KakaoButton = () => (
@@ -79,6 +87,7 @@ export default function Auth() {
         <Title sub="틀니 관리, 이제 앱이 챙겨드려요">틀니케어</Title>
         <BigButton onClick={() => setMode('role')}>처음이에요 (회원가입)</BigButton>
         <BigButton variant="ghost" onClick={() => setMode('login')}>이미 계정이 있어요 (로그인)</BigButton>
+        <AppInformation />
       </Screen>
     );
   }
@@ -117,12 +126,12 @@ export default function Auth() {
       <BigButton onClick={submit} disabled={busy || !email || !password}>
         {busy ? '잠시만요...' : mode === 'signup' ? '가입하기' : '로그인'}
       </BigButton>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
+      {!Capacitor.isNativePlatform() && <><div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         <span style={{ color: 'var(--text-sub)', fontSize: 15 }}>또는</span>
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
-      <KakaoButton />
+      <KakaoButton /></>}
       <BigButton variant="ghost" onClick={() => setMode(mode === 'signup' ? 'role' : 'welcome')}>뒤로</BigButton>
     </Screen>
   );

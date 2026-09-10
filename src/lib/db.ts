@@ -22,6 +22,8 @@ function errorSignature(err: unknown): string {
 // 문자열(err.message)과 에러 객체 둘 다 받을 수 있다
 export function friendlyError(err: unknown): string {
   const m = errorSignature(err);
+  if (m.includes('invalid_routine_time')) return '관리 시간을 다시 골라주세요.';
+  if (m.includes('pgrst202') || m.includes('delete_own_account') || m.includes('list_my_care_links')) return '계정 관리 기능을 아직 사용할 수 없어요. 앱 운영자에게 문의해주세요.';
 
   // 서버에 아예 닿지 못한 경우 (연결 실패 · 서버 일시정지 · 인터넷 끊김)
   // Supabase 무료 플랜은 7일 미사용 시 프로젝트가 자동 일시정지되어 주소 자체가 사라진다

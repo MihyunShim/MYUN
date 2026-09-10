@@ -6,19 +6,35 @@ import { db } from './db';
 const PENDING_ROLE_KEY = 'denturecare:pending-role';
 
 export function rememberPendingRole(role: 'A1' | 'A2'): void {
-  try { localStorage.setItem(PENDING_ROLE_KEY, role); } catch { /* 저장 불가 환경은 무시 */ }
+  try { sessionStorage.setItem(PENDING_ROLE_KEY, JSON.stringify({ role, at: Date.now() })); } catch { /* 저장 불가 */ }
+}
+
+export function clearPendingRole(): void {
+  try { sessionStorage.removeItem(PENDING_ROLE_KEY); localStorage.removeItem(PENDING_ROLE_KEY); } catch { /* 저장 불가 */ }
 }
 
 export async function applyPendingRole(userId: string): Promise<boolean> {
+  let pending: { role?: string; at?: number };
   try {
-    const role = localStorage.getItem(PENDING_ROLE_KEY);
-    if (role !== 'A1' && role !== 'A2') return false;
-    localStorage.removeItem(PENDING_ROLE_KEY);
-    const { error } = await db().from('profiles').update({ role }).eq('id', userId);
-    return !error;
-  } catch {
-    return false;
+    pending = JSON.parse(sessionStorage.getItem(PENDING_ROLE_KEY) ?? 'null');
+  } catch { clearPendingRole(); return false; }
+  if (!pending || !['A1', 'A2'].includes(pending.role ?? '') || !pending.at
+    || Date.now() - pending.at > 30 * 60 * 1000) {
+    clearPendingRole(); return false;
   }
+  const [profile, routines, links] = await Promise.all([
+    db().from('profiles').select('created_at').eq('id', userId).single(),
+    db().from('routines').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    db().from('care_links').select('id', { count: 'exact', head: true }).or(`elder_id.eq.${userId},guardian_id.eq.${userId}`),
+  ]);
+  if (profile.error || routines.error || links.error) throw profile.error || routines.error || links.error;
+  // 가입 선택으로 기존 계정의 역할과 화면을 바꾸지 않는다.
+  if (!profile.data || new Date(profile.data.created_at).getTime() < pending.at - 60000
+    || routines.count || links.count) { clearPendingRole(); return false; }
+  const { error } = await db().from('profiles').update({ role: pending.role }).eq('id', userId).select('id').single();
+  if (error) throw error;
+  clearPendingRole();
+  return true;
 }
 
 export async function kakaoLogin(): Promise<string | null> {

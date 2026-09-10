@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { Screen, Title, Card, BigButton, ErrorBox } from '../components/ui';
+import AccountScreen from './AccountScreen';
 
 const RELATIONS = ['어머니', '아버지', '배우자', '그 외 가족'];
 
@@ -9,6 +10,7 @@ const RELATIONS = ['어머니', '아버지', '배우자', '그 외 가족'];
 export default function OnboardingA2() {
   const { refresh, signOut } = useAuth();
   const [code, setCode] = useState('');
+  const [accountOpen, setAccountOpen] = useState(false);
   const [relation, setRelation] = useState(RELATIONS[0]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,11 +26,13 @@ export default function OnboardingA2() {
       });
       if (err) { setError(friendlyError(err)); return; }
       await refresh(); // 연결 완료 → 보호자 홈으로
-    } finally {
+    } catch (err) { setError(friendlyError(err)); }
+    finally {
       setBusy(false);
     }
   };
 
+  if (accountOpen) return <AccountScreen onBack={() => setAccountOpen(false)} />;
   return (
     <Screen>
       <Title sub="부모님 앱의 온보딩 마지막 화면(또는 설정)에 있는 6자리 코드를 입력해주세요">
@@ -70,6 +74,7 @@ export default function OnboardingA2() {
         {busy ? '연결 중...' : '연결하기'}
       </BigButton>
       <BigButton variant="ghost" onClick={signOut}>로그아웃</BigButton>
+      <BigButton variant="ghost" onClick={() => setAccountOpen(true)}>계정·앱 안내</BigButton>
     </Screen>
   );
 }

@@ -65,7 +65,4 @@ export const SLOT_DETAIL: Record<SlotId, { action: string; tool: string }> = Obj
   DEFAULT_ROUTINES.map((r) => [r.slot, { action: r.action, tool: r.tool }]),
 ) as Record<SlotId, { action: string; tool: string }>;
 
-export function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+export { localDateString as todayStr } from './dates';

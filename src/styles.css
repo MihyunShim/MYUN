@@ -37,3 +37,11 @@ button {
   border: none;
   border-radius: 12px;
 }
+
+input, button, a { -webkit-tap-highlight-color: transparent; }
+input { min-width: 0; max-width: 100%; }
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+button:disabled { cursor: default; }

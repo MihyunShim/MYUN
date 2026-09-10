@@ -3,6 +3,8 @@ import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { DEFAULT_ROUTINES } from '../lib/types';
 import { calculateRecall } from '../lib/recall';
+import { isValidTime } from '../lib/dates';
+import AccountScreen from './AccountScreen';
 import { Screen, Title, Card, BigButton, Field, ErrorBox } from '../components/ui';
 
 // A1 온보딩 5단계 (docs/설계/01 A1-0)
@@ -10,6 +12,7 @@ import { Screen, Title, Card, BigButton, Field, ErrorBox } from '../components/u
 export default function Onboarding() {
   const { session, profile, refresh } = useAuth();
   const [step, setStep] = useState(0);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -21,11 +24,12 @@ export default function Onboarding() {
   const [clinicPhone, setClinicPhone] = useState('');
   const [times, setTimes] = useState(DEFAULT_ROUTINES.map((r) => r.time));
 
-  const recall = calculateRecall(parseInt(madeYear), parseInt(madeMonth));
+  const recall = calculateRecall(Number(madeYear), Number(madeMonth));
   const totalSteps = 5;
 
   const save = async () => {
     if (!session) return;
+    if (!recall || !times.every(isValidTime)) { setError('틀니 제작 시기와 관리 시간을 다시 확인해주세요.'); return; }
     setError('');
     setBusy(true);
     try {
@@ -37,8 +41,8 @@ export default function Onboarding() {
 
       const { error: e2 } = await db().from('dentures').upsert({
         user_id: uid,
-        made_year: parseInt(madeYear),
-        made_month: parseInt(madeMonth),
+        made_year: Number(madeYear),
+        made_month: Number(madeMonth),
         clinic_name: clinicName.trim() || null,
         clinic_phone: clinicPhone.trim() || null,
       }, { onConflict: 'user_id' });
@@ -52,7 +56,8 @@ export default function Onboarding() {
       if (e3) { setError(friendlyError(e3)); return; }
 
       await refresh(); // onboarded = true 가 되어 홈으로 이동
-    } finally {
+    } catch (err) { setError(friendlyError(err)); }
+    finally {
       setBusy(false);
     }
   };
@@ -68,15 +73,17 @@ export default function Onboarding() {
     </div>
   );
 
+  if (accountOpen) return <AccountScreen onBack={() => setAccountOpen(false)} />;
   return (
     <Screen>
       <StepBar />
+      <button onClick={() => setAccountOpen(true)} style={{ alignSelf: 'flex-end', background: 'none', color: 'var(--primary)' }}>계정·앱 안내</button>
 
       {step === 0 && (<>
         <Title sub="어떻게 불러드릴까요?">만나서 반가워요!</Title>
         <Field label="이름" value={name} onChange={setName} placeholder="예) 김순자" />
         <Field label="태어난 연도" value={birthYear} onChange={setBirthYear} inputMode="numeric" placeholder="예) 1948" />
-        <BigButton onClick={() => setStep(1)} disabled={!name.trim() || birthYear.length !== 4}>다음</BigButton>
+        <BigButton onClick={() => setStep(1)} disabled={!name.trim() || !/^\d{4}$/.test(birthYear) || Number(birthYear) < 1900 || Number(birthYear) > new Date().getFullYear()}>다음</BigButton>
       </>)}
 
       {step === 1 && (<>
@@ -89,7 +96,7 @@ export default function Onboarding() {
             <p style={{ color: 'var(--text-sub)', marginTop: 4 }}>{recall.note}</p>
           </Card>
         )}
-        <BigButton onClick={() => setStep(2)} disabled={madeYear.length !== 4 || !madeMonth}>다음</BigButton>
+        <BigButton onClick={() => setStep(2)} disabled={!recall}>다음</BigButton>
         <BigButton variant="ghost" onClick={() => setStep(0)}>뒤로</BigButton>
       </>)}
 
@@ -102,19 +109,20 @@ export default function Onboarding() {
       </>)}
 
       {step === 3 && (<>
-        <Title sub="이 시간에 알려드릴게요. 눌러서 바꿀 수 있어요">하루 5번 관리 시간</Title>
+        <Title sub="눌러서 바꿀 수 있어요. 시작 후 설정에서 알림을 허용해주세요.">하루 5번 관리 시간</Title>
         {DEFAULT_ROUTINES.map((r, i) => (
           <Card key={r.slot} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
             <span style={{ fontWeight: 700 }}>{r.label}</span>
             <input
               type="time"
+              aria-label={`${r.label} 관리 시간`}
               value={times[i]}
               onChange={(e) => setTimes(times.map((t, j) => (j === i ? e.target.value : t)))}
               style={{ fontSize: 19, padding: 8, border: '2px solid var(--border)', borderRadius: 10 }}
             />
           </Card>
         ))}
-        <BigButton onClick={() => setStep(4)}>다음</BigButton>
+        <BigButton onClick={() => setStep(4)} disabled={!times.every(isValidTime)}>다음</BigButton>
         <BigButton variant="ghost" onClick={() => setStep(2)}>뒤로</BigButton>
       </>)}
 

@@ -1,0 +1,85 @@
+import { useCallback, useEffect, useState } from 'react';
+import { db, friendlyError } from '../lib/db';
+import { useAuth } from '../state/AuthContext';
+import { Card, BigButton, Field, ErrorBox } from './ui';
+
+export function AppInformation() {
+  const policy = import.meta.env.VITE_PRIVACY_POLICY_URL as string | undefined;
+  const support = import.meta.env.VITE_SUPPORT_EMAIL as string | undefined;
+  return <Card>
+    <p style={{ fontWeight: 800, marginBottom: 8 }}>앱 안내</p>
+    <p>틀니케어는 일상 관리와 기록을 도와드려요. 진단이나 응급 연락 서비스는 아니에요. 불편한 증상과 검진 일정은 담당 치과에 확인해주세요.</p>
+    <p style={{ marginTop: 8 }}>계정·틀니 정보와 관리 기록은 서버에 저장돼요. 초대코드로 연결한 가족은 관리 현황과 도움 요청을 볼 수 있어요. 연결은 언제든 해제할 수 있어요.</p>
+    {policy?.startsWith('https://') && <p style={{ marginTop: 12 }}><a href={policy} target="_blank" rel="noopener noreferrer">개인정보처리방침</a></p>}
+    {support && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(support) && <p><a href={`mailto:${support}`}>문의하기</a></p>}
+  </Card>;
+}
+
+interface Link { link_id: string; other_name: string; relation: string | null; linked_at: string; }
+
+export function AccountActions() {
+  const { refresh, signOut } = useAuth();
+  const [links, setLinks] = useState<Link[]>([]);
+  const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const [unlinking, setUnlinking] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const result = await db().rpc('list_my_care_links');
+      if (result.error) throw result.error;
+      setLinks(result.data ?? []);
+    } catch (err) { setError(friendlyError(err)); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  const unlink = async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await db().from('care_links').update({ status: 'revoked' }).eq('id', id).select('id').single();
+      if (result.error) throw result.error;
+      setUnlinking(null);
+      await load();
+      await refresh();
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setBusy(false); }
+  };
+
+  const deleteAccount = async () => {
+    if (confirmation !== '탈퇴' || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      // 서버는 전달된 사용자 ID가 아닌, 검증된 로그인 계정(auth.uid)만 삭제한다.
+      const result = await db().rpc('delete_own_account');
+      if (result.error) throw result.error;
+      await signOut();
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setBusy(false); }
+  };
+
+  return <Card>
+    <p style={{ fontWeight: 800, marginBottom: 8 }}>계정과 가족 연결</p>
+    <ErrorBox message={error} />
+    {error && <BigButton variant="ghost" onClick={() => { setError(''); void load(); }}>다시 확인</BigButton>}
+    {links.map((link) => <div key={link.link_id} style={{ margin: '12px 0', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+      <p style={{ fontWeight: 700 }}>{link.other_name || '연결된 가족'}</p>
+      <p style={{ fontSize: 15 }}>등록한 관계: {link.relation || '가족'}</p>
+      {unlinking === link.link_id ? <>
+        <p>연결을 해제하면 이 가족은 관리 현황과 도움 요청을 볼 수 없어요.</p>
+        <BigButton variant="danger" disabled={busy} onClick={() => unlink(link.link_id)}>연결 해제하기</BigButton>
+        <BigButton variant="ghost" disabled={busy} onClick={() => setUnlinking(null)}>취소</BigButton>
+      </> : <BigButton variant="ghost" onClick={() => setUnlinking(link.link_id)}>가족 연결 해제</BigButton>}
+    </div>)}
+    {deleting ? <>
+      <p style={{ margin: '12px 0' }}>탈퇴하면 계정, 틀니 정보, 관리·검진 기록, 가족 연결과 본인의 도움 요청이 삭제돼요. 되돌릴 수 없어요. 가족의 계정은 유지돼요.</p>
+      <Field label="확인하려면 ‘탈퇴’를 입력해주세요" value={confirmation} onChange={setConfirmation} />
+      <BigButton variant="danger" disabled={busy || confirmation !== '탈퇴'} onClick={deleteAccount}>{busy ? '처리 중...' : '계정과 기록 영구 삭제'}</BigButton>
+      <BigButton variant="ghost" disabled={busy} onClick={() => { setDeleting(false); setConfirmation(''); }}>취소</BigButton>
+    </> : <BigButton variant="ghost" onClick={() => setDeleting(true)}>회원 탈퇴</BigButton>}
+  </Card>;
+}

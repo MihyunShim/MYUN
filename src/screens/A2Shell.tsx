@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import HomeA2 from './HomeA2';
 import ReportA2 from './ReportA2';
+import AccountScreen from './AccountScreen';
 
-type Tab = 'home' | 'report';
+type Tab = 'home' | 'report' | 'settings';
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'home', icon: '🏠', label: '홈' },
   { id: 'report', icon: '📊', label: '리포트' },
+  { id: 'settings', icon: '⚙️', label: '설정' },
 ];
 
 // A2 하단 탭 내비게이션 (docs/설계/01 공통 규칙)
@@ -17,6 +19,7 @@ export default function A2Shell() {
     <div style={{ minHeight: '100%' }}>
       {tab === 'home' && <HomeA2 />}
       {tab === 'report' && <ReportA2 />}
+      {tab === 'settings' && <AccountScreen />}
 
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,

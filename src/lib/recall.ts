@@ -1,5 +1,6 @@
 // 틀니 제작 시기 기반 치과 검진(리콜) 주기 계산
 // 프로토타입 v12의 calculateRecall 로직 계승 (Tallgren 1972 골흡수 근거)
+import { addMonthsClamped, calendarDaysUntil, isValidDentureDate, localDateString } from './dates';
 
 export interface RecallInfo {
   phase: string;
@@ -12,7 +13,7 @@ export interface RecallInfo {
 }
 
 export function calculateRecall(madeYear: number, madeMonth: number): RecallInfo | null {
-  if (!madeYear || !madeMonth) return null;
+  if (!isValidDentureDate(madeYear, madeMonth)) return null;
   const made = new Date(madeYear, madeMonth - 1, 1);
   const today = new Date();
   const monthsSince =
@@ -45,9 +46,8 @@ export function calculateRecall(madeYear: number, madeMonth: number): RecallInfo
     note = '5년 이상 사용하셨어요. 틀니 교체를 검토할 시기예요';
   }
 
-  const nextRecall = new Date(today);
-  nextRecall.setMonth(nextRecall.getMonth() + intervalMonths);
-  const dDay = Math.ceil((nextRecall.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const nextRecall = addMonthsClamped(today, intervalMonths);
+  const dDay = calendarDaysUntil(localDateString(nextRecall), today);
 
   return { phase, intervalMonths, monthsSince, nextRecall, dDay, urgency, note };
 }

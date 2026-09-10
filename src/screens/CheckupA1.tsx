@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { db } from '../lib/db';
+import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { calculateRecall } from '../lib/recall';
-import { Screen, Title, Card, BigButton, Splash } from '../components/ui';
+import { Screen, Title, Card, BigButton, Splash, ErrorBox } from '../components/ui';
+import { addMonthsClamped, calendarDaysUntil, localDateString } from '../lib/dates';
+import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 
 interface Denture {
   made_year: number;
@@ -24,19 +26,24 @@ export default function CheckupA1() {
   const [checkups, setCheckups] = useState<Checkup[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     if (!session) return;
+    try {
     const [d, c] = await Promise.all([
       db().from('dentures').select('*').eq('user_id', session.user.id).maybeSingle(),
       db().from('checkups').select('*').eq('user_id', session.user.id).order('visited_on', { ascending: false }),
     ]);
+    if (d.error || c.error) throw d.error || c.error;
     setDenture((d.data as Denture) ?? null);
     setCheckups((c.data as Checkup[]) ?? []);
-    setLoading(false);
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setLoading(false); }
   }, [session]);
 
   useEffect(() => { load(); }, [load]);
+  useRefreshOnResume(load);
 
   if (loading) return <Splash text="검진 정보를 불러오는 중..." />;
 
@@ -45,23 +52,25 @@ export default function CheckupA1() {
 
   // 다음 검진일: 검진 기록이 있으면 그 기록 기준, 없으면 권장 주기 안내만
   const nextDate = latest ? new Date(latest.next_recall_on + 'T00:00:00') : null;
-  const dDay = nextDate ? Math.ceil((nextDate.getTime() - Date.now()) / 86400000) : null;
+  const dDay = latest ? calendarDaysUntil(latest.next_recall_on) : null;
 
   const recordCheckup = async () => {
-    if (!session || !recall) return;
+    if (!session || !recall || busy || checkups.some((c) => c.visited_on === localDateString())) return;
+    setError('');
     setBusy(true);
     try {
       const today = new Date();
-      const next = new Date(today);
-      next.setMonth(next.getMonth() + recall.intervalMonths);
-      await db().from('checkups').insert({
+      const next = addMonthsClamped(today, recall.intervalMonths);
+      const result = await db().from('checkups').insert({
         user_id: session.user.id,
-        visited_on: today.toISOString().slice(0, 10),
-        next_recall_on: next.toISOString().slice(0, 10),
+        visited_on: localDateString(today),
+        next_recall_on: localDateString(next),
         interval_months: recall.intervalMonths,
       });
+      if (result.error) throw result.error;
       await load();
-    } finally {
+    } catch (err) { setError(friendlyError(err)); }
+    finally {
       setBusy(false);
     }
   };
@@ -74,6 +83,9 @@ export default function CheckupA1() {
   return (
     <Screen>
       <Title sub="틀니도 정기 점검이 필요해요">치과 검진</Title>
+      <ErrorBox message={error} />
+      {error && <BigButton variant="ghost" onClick={() => { setError(''); void load(); }}>다시 불러오기</BigButton>}
+      <p style={{ fontSize: 15, color: 'var(--text-sub)' }}>검진 주기는 참고 안내예요. 담당 치과에서 안내받은 일정이 우선이에요.</p>
 
       {/* 다음 검진 D-day */}
       <Card style={{
@@ -128,8 +140,8 @@ export default function CheckupA1() {
         </Card>
       )}
 
-      <BigButton onClick={recordCheckup} disabled={busy || !recall}>
-        {busy ? '기록 중...' : '오늘 검진 받았어요 ✓'}
+      <BigButton onClick={recordCheckup} disabled={busy || !recall || checkups.some((c) => c.visited_on === localDateString())}>
+        {busy ? '기록 중...' : checkups.some((c) => c.visited_on === localDateString()) ? '오늘 검진을 기록했어요 ✓' : '오늘 검진 받았어요 ✓'}
       </BigButton>
 
       {/* 검진 이력 */}

@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { db } from '../lib/db';
+import { useCallback, useEffect, useState } from 'react';
+import { db, friendlyError } from '../lib/db';
+import { localDateString } from '../lib/dates';
+import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { useAuth } from '../state/AuthContext';
 import { computeStreak, weeklyStats } from '../lib/streak';
 import type { Routine, RoutineLog } from '../lib/types';
-import { Screen, Title, Card, Splash } from '../components/ui';
+import { Screen, Title, Card, Splash, ErrorBox, BigButton } from '../components/ui';
 
 // A1 진행률 화면 (docs/설계/01 A1-3): 연속 일수, 습관화 단계, 주간 그래프
 export default function ProgressA1() {
@@ -11,24 +13,31 @@ export default function ProgressA1() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    try {
       if (!session) return;
       const since = new Date();
       since.setDate(since.getDate() - 90);
-      const sinceStr = since.toISOString().slice(0, 10);
+      const sinceStr = localDateString(since);
       const [r, l] = await Promise.all([
-        db().from('routines').select('*').eq('user_id', session.user.id),
+        db().from('routines').select('*').eq('user_id', session.user.id).eq('enabled', true),
         db().from('routine_logs').select('*').eq('user_id', session.user.id).gte('log_date', sinceStr),
       ]);
+      if (r.error || l.error) throw r.error || l.error;
+      setError('');
       setRoutines((r.data as Routine[]) ?? []);
-      setLogs((l.data as RoutineLog[]) ?? []);
-      setLoading(false);
-    })();
+      const slots = new Set((r.data as Routine[] ?? []).map((routine) => routine.slot));
+      setLogs(((l.data as RoutineLog[]) ?? []).filter((log) => slots.has(log.slot)));
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setLoading(false); }
   }, [session]);
+  useEffect(() => { void load(); }, [load]);
+  useRefreshOnResume(load);
 
   if (loading) return <Splash text="진행률을 불러오는 중..." />;
+  if (error) return <Screen><Title>나의 진행률</Title><ErrorBox message={error} /><BigButton onClick={load}>다시 불러오기</BigButton></Screen>;
 
   const streak = computeStreak(logs, routines.length);
   const week = weeklyStats(logs);
@@ -70,7 +79,7 @@ export default function ProgressA1() {
           })}
         </div>
         <p style={{ color: 'var(--text-sub)', fontSize: 15, marginTop: 10 }}>
-          초록 = 5개 모두 완료 · 주황 = 일부 완료
+          초록 = 설정된 관리 모두 완료 · 주황 = 일부 완료
         </p>
       </Card>
 

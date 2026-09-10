@@ -6,7 +6,7 @@ export function Screen({ children, style }: { children: ReactNode; style?: CSSPr
   return (
     <div style={{
       minHeight: '100%', maxWidth: 480, margin: '0 auto',
-      padding: '24px 20px 96px', display: 'flex', flexDirection: 'column', gap: 16,
+      padding: 'calc(24px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))', display: 'flex', flexDirection: 'column', gap: 16,
       ...style,
     }}>
       {children}
@@ -93,7 +93,7 @@ export function Field({
 export function ErrorBox({ message }: { message: string }) {
   if (!message) return null;
   return (
-    <div style={{
+    <div role="alert" style={{
       background: '#FEF2F2', border: '1px solid #FECACA', color: 'var(--danger)',
       borderRadius: 12, padding: '12px 16px', fontWeight: 600,
     }}>

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { db } from '../lib/db';
+import { useCallback, useEffect, useState } from 'react';
+import { db, friendlyError } from '../lib/db';
+import { localDateString, calendarDaysUntil } from '../lib/dates';
+import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { useAuth } from '../state/AuthContext';
 import type { Routine, RoutineLog } from '../lib/types';
-import { Screen, Title, Card, Splash } from '../components/ui';
+import { Screen, Title, Card, Splash, ErrorBox, BigButton } from '../components/ui';
 
 interface CheckupRow { visited_on: string; next_recall_on: string; }
 
@@ -15,29 +17,36 @@ export default function ReportA2() {
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [checkup, setCheckup] = useState<CheckupRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    try {
       if (!elderId) return;
       const since = new Date();
       since.setDate(since.getDate() - 14);
-      const sinceStr = since.toISOString().slice(0, 10);
+      const sinceStr = localDateString(since);
       const [p, r, l, c] = await Promise.all([
         db().from('profiles').select('name').eq('id', elderId).single(),
-        db().from('routines').select('*').eq('user_id', elderId).order('alarm_time'),
+        db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
         db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr),
         db().from('checkups').select('visited_on,next_recall_on').eq('user_id', elderId)
           .order('visited_on', { ascending: false }).limit(1).maybeSingle(),
       ]);
+      if (p.error || r.error || l.error || c.error) throw p.error || r.error || l.error || c.error;
+      setError('');
       setElderName((p.data as { name: string } | null)?.name ?? '');
       setRoutines((r.data as Routine[]) ?? []);
-      setLogs((l.data as RoutineLog[]) ?? []);
+      const slots = new Set((r.data as Routine[] ?? []).map((routine) => routine.slot));
+      setLogs(((l.data as RoutineLog[]) ?? []).filter((log) => slots.has(log.slot)));
       setCheckup((c.data as CheckupRow) ?? null);
-      setLoading(false);
-    })();
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setLoading(false); }
   }, [elderId]);
+  useEffect(() => { void load(); }, [load]);
+  useRefreshOnResume(load);
 
   if (loading) return <Splash text="리포트를 만드는 중..." />;
+  if (error) return <Screen><Title>주간 리포트</Title><ErrorBox message={error} /><BigButton onClick={load}>다시 불러오기</BigButton></Screen>;
 
   const total = routines.length;
   const dateStr = (offset: number) => {
@@ -76,7 +85,7 @@ export default function ReportA2() {
   const worst = [...slotMisses].sort((a, b) => b.missed - a.missed)[0];
 
   const dDay = checkup
-    ? Math.ceil((new Date(checkup.next_recall_on + 'T00:00:00').getTime() - Date.now()) / 86400000)
+    ? calendarDaysUntil(checkup.next_recall_on)
     : null;
 
   return (
