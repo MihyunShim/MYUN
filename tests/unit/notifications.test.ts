@@ -3,13 +3,15 @@ import type { Routine } from '../../src/lib/types';
 
 const native = vi.hoisted(() => ({
   checkPermissions: vi.fn(), requestPermissions: vi.fn(), getPending: vi.fn(), cancel: vi.fn(), schedule: vi.fn(),
+  isNative: vi.fn(),
 }));
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true } }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: native.isNative } }));
 vi.mock('@capacitor/local-notifications', () => ({ LocalNotifications: native }));
 const routine: Routine = { id: 'r1', user_id: 'elder', slot: 'A01', label: '아침 식후', alarm_time: '08:00:00', enabled: true };
 
 beforeEach(() => {
   vi.resetModules(); vi.resetAllMocks();
+  vi.unstubAllGlobals(); native.isNative.mockReturnValue(true);
   native.checkPermissions.mockResolvedValue({ display: 'granted' });
   native.requestPermissions.mockResolvedValue({ display: 'granted' });
   native.getPending.mockResolvedValue({ notifications: [{ id: 1 }, { id: 101 }, { id: 999 }] });
@@ -17,6 +19,15 @@ beforeEach(() => {
   native.schedule.mockResolvedValue({ notifications: [] });
 });
 describe('네이티브 알림 예약', () => {
+  it('웹 권한을 확인할 때 알림 생성이나 권한 요청을 시도하지 않는다', async () => {
+    native.isNative.mockReturnValue(false);
+    const requestPermission = vi.fn();
+    vi.stubGlobal('Notification', { permission: 'default', requestPermission });
+    const api = await import('../../src/lib/notifications');
+    expect(await api.notificationPermission()).toBe('prompt');
+    expect(native.checkPermissions).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
   it('본인 슬롯만 취소하고 안정적인 ID와 매일 시각을 예약한다', async () => {
     const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
     expect(await api.scheduleRoutines([routine])).toBe(true);

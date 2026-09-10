@@ -18,7 +18,11 @@ function enqueue<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 export async function notificationPermission(): Promise<NotificationPermission> {
-  if (!Capacitor.isNativePlatform() && !('Notification' in globalThis)) return 'unsupported';
+  if (!Capacitor.isNativePlatform()) {
+    if (!('Notification' in globalThis)) return 'unsupported';
+    // 웹 플러그인은 권한 검사 중 빈 알림 생성을 시도한다. 조회는 브라우저 속성만 읽는다.
+    return Notification.permission === 'default' ? 'prompt' : Notification.permission;
+  }
   const s = await LocalNotifications.checkPermissions();
   return s.display === 'granted' ? 'granted' : s.display === 'denied' ? 'denied' : 'prompt';
 }
@@ -38,8 +42,10 @@ export function cancelRoutineNotifications(): Promise<void> {
 
 export async function enableNotifications(routines: Routine[]): Promise<boolean> {
   if ((await notificationPermission()) === 'unsupported') return false;
-  const perm = await LocalNotifications.requestPermissions();
-  if (perm.display !== 'granted') return false;
+  const granted = Capacitor.isNativePlatform()
+    ? (await LocalNotifications.requestPermissions()).display === 'granted'
+    : await Notification.requestPermission() === 'granted';
+  if (!granted) return false;
   return scheduleRoutines(routines);
 }
 

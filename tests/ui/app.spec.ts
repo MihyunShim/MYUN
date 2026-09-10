@@ -16,7 +16,7 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
   await page.route('https://denturecare-test.supabase.co/**', async (route) => {
     const request = route.request(); const url = new URL(request.url());
     const path = url.pathname; const method = request.method();
-    const headers = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
+    const headers = { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-range', 'content-type': 'application/json' };
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...headers, 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,HEAD' } });
     const respond = (data: unknown, status = 200, extra = {}) => route.fulfill({ status, headers: { ...headers, ...extra }, body: JSON.stringify(data) });
     if (path.endsWith('/token')) return respond(session);
