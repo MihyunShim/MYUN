@@ -200,7 +200,7 @@ export default function SettingsA1() {
           제작 시기가 바뀌면 검진 주기도 다시 계산돼요
           {dentureSaved && <strong style={{ color: 'var(--success)' }}> · 저장됨 ✓</strong>}
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginBottom: 10 }}>
           <Field label="만든 연도" value={madeYear} onChange={setMadeYear} inputMode="numeric" placeholder="2024" />
           <Field label="만든 월" value={madeMonth} onChange={setMadeMonth} inputMode="numeric" placeholder="3" />
         </div>

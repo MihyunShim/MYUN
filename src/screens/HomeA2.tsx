@@ -99,6 +99,7 @@ export default function HomeA2() {
         </h1>
         <button onClick={signOut} style={{
           background: 'none', color: 'var(--text-sub)', fontSize: 15,
+          whiteSpace: 'nowrap', flexShrink: 0,
           textDecoration: 'underline', minHeight: 44,
         }}>
           로그아웃

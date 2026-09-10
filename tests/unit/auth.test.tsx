@@ -49,6 +49,16 @@ it('프로필 실패 후 무한 로딩 대신 재시도로 복구한다', async 
   fireEvent.click(screen.getByText('retry'));
   await screen.findByText('first');
 });
+it('설정을 새로 읽는 동안 현재 화면을 로딩 화면으로 교체하지 않는다', async () => {
+  render(<AuthProvider><Probe /></AuthProvider>); emit('first'); await screen.findByText('first');
+  let finish!: (value: unknown) => void;
+  mock.query.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  fireEvent.click(screen.getByText('retry'));
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  expect(screen.getByText('first')).toBeTruthy();
+  expect(screen.queryByText('loading')).toBeNull();
+  await act(async () => { finish(good('profiles', 'first')); });
+});
 it('이전 계정의 늦은 응답은 새 계정 화면을 덮지 않는다', async () => {
   let finish!: (data: unknown) => void;
   mock.query.mockImplementation((table, id) => table === 'profiles' && id === 'first'

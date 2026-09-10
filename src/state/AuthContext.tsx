@@ -29,9 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const generation = useRef(0);
   const currentSession = useRef<Session | null>(null);
 
-  const loadUserData = useCallback(async (s: Session | null) => {
+  const loadUserData = useCallback(async (s: Session | null, showLoading = true) => {
     const request = ++generation.current;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     setError('');
     try {
       if (!s) {
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    await loadUserData(currentSession.current);
+    await loadUserData(currentSession.current, false);
   }, [loadUserData]);
 
   useEffect(() => {

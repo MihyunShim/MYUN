@@ -72,7 +72,7 @@ export function Field({
   inputMode?: 'text' | 'numeric' | 'tel' | 'email';
 }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
       <span style={{ fontWeight: 700 }}>{label}</span>
       <input
         type={type}
@@ -81,7 +81,7 @@ export function Field({
         inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          minHeight: 52, fontSize: 19, padding: '0 16px',
+          width: '100%', minHeight: 52, fontSize: 19, padding: '0 16px',
           border: '2px solid var(--border)', borderRadius: 12,
           background: 'var(--surface)', color: 'var(--text)',
         }}

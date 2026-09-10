@@ -24,7 +24,10 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
     if (path.endsWith('/logout')) return route.fulfill({ status: 204, headers });
     if (path.endsWith('/rpc/list_my_care_links')) return respond(state.linked ? [{ link_id: 'link', other_name: '시험 가족', relation: '자녀' }] : []);
     if (path.endsWith('/rpc/delete_own_account')) { state.deletes++; return respond(null); }
-    if (path.endsWith('/profiles')) return respond(url.searchParams.get('id')?.includes(elderId) && role === 'A2' ? { ...profile, id: elderId, role: 'A1' } : profile);
+    if (path.endsWith('/profiles')) {
+      if (method === 'PATCH') { Object.assign(profile, request.postDataJSON()); return respond({ id }); }
+      return respond(url.searchParams.get('id')?.includes(elderId) && role === 'A2' ? { ...profile, id: elderId, role: 'A1' } : profile);
+    }
     if (path.endsWith('/routines')) {
       if (method === 'HEAD') return route.fulfill({ status: 200, headers: { ...headers, 'content-range': '0-4/5' } });
       if (method === 'PATCH') {
@@ -66,7 +69,12 @@ async function login(page: Page) {
   await page.getByRole('button', { name: '로그인', exact: true }).click();
 }
 async function noOverflow(page: Page) {
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const layout = await page.evaluate(() => ({
+    width: window.innerWidth, content: document.documentElement.scrollWidth,
+    outside: Array.from(document.querySelectorAll('input, label, button, p')).filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
+      .map((el) => ({ tag: el.tagName, label: el.getAttribute('aria-label') || el.textContent?.slice(0, 40), right: el.getBoundingClientRect().right })),
+  }));
+  expect(layout.content <= layout.width, JSON.stringify(layout)).toBe(true);
 }
 test('기록 저장 실패를 표시하고 재시도·재실행 시 완료 기록을 유지한다', async ({ page }, testInfo) => {
   const state = await fixture(page); await login(page);
@@ -95,6 +103,11 @@ test('설정은 저장 실패와 미래 제작일을 처리하고 탈퇴에 명�
   const state = await fixture(page); await login(page);
   await page.getByRole('button', { name: '알겠어요' }).click();
   await page.getByRole('button', { name: /설정/ }).click();
+  await page.getByRole('button', { name: '보통', exact: true }).click();
+  await expect(page.locator('html')).toHaveCSS('--font-body', '18px');
+  await expect(page.getByRole('heading', { name: '설정', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '크게', exact: true }).click();
+  await expect(page.locator('html')).toHaveCSS('--font-body', '22px');
   state.failSave = true;
   await page.getByLabel('아침 식후 알림 시간').fill('09:00');
   await expect(page.getByRole('alert')).toContainText('연결');
