@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 
 export function Screen({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <div role="status" aria-live="polite" style={{
+    <div style={{
       minHeight: '100%', maxWidth: 480, margin: '0 auto',
       padding: 'calc(24px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))', display: 'flex', flexDirection: 'column', gap: 16,
       ...style,

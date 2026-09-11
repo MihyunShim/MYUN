@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import A1Shell from '../../src/screens/A1Shell';
 import A2Shell from '../../src/screens/A2Shell';
-import { BigButton, Modal } from '../../src/components/ui';
+import { BigButton, Modal, Screen, Splash } from '../../src/components/ui';
 
 vi.mock('../../src/screens/HomeA1', () => ({ default: () => <h1>사용자 홈 내용</h1> }));
 vi.mock('../../src/screens/HomeA2', () => ({ default: () => <h1>보호자 홈 내용</h1> }));
@@ -68,4 +68,13 @@ it('구형 iOS에서는 배경 읽기를 차단하고 Tab 순환·Escape·초점
   expect(root.hasAttribute('aria-hidden')).toBe(false);
   expect(document.activeElement).toBe(opener);
   root.remove();
+});
+
+it('화면 전체가 아닌 로딩 안내만 상태 변경을 알린다', () => {
+  const view = render(<Screen><h1>오늘의 관리</h1><button>완료</button></Screen>);
+  expect(screen.queryByRole('status')).toBeNull();
+  view.rerender(<Screen><Splash text="기록 불러오는 중" /></Screen>);
+  const statuses = screen.getAllByRole('status');
+  expect(statuses).toHaveLength(1);
+  expect(statuses[0].textContent).toContain('기록 불러오는 중');
 });
