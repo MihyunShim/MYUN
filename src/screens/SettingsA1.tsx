@@ -8,6 +8,7 @@ import { enableNotifications, notificationPermission, scheduleRoutines, sendTest
 import { Screen, Title, Card, BigButton, Field, Splash, ErrorBox } from '../components/ui';
 import { isValidTime } from '../lib/dates';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
+import { voiceNotificationsEnabled, setVoiceNotificationsEnabled, CARE_VOICE_TEXT } from '../lib/voiceNotifications';
 import { AccountActions, AppInformation } from '../components/AccountActions';
 
 // A1 설정 화면 (docs/설계/01 A1-6): 알림, 글자 크기, 알림 시간, 틀니 정보, 초대코드, 로그아웃
@@ -19,6 +20,7 @@ export default function SettingsA1() {
   const [notifState, setNotifState] = useState<NotificationPermission>('prompt');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(voiceNotificationsEnabled);
   const [testSent, setTestSent] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<RoutineNotificationStatus | null>(null);
@@ -111,7 +113,7 @@ export default function SettingsA1() {
       setNotifState(await notificationPermission());
       if (Capacitor.isNativePlatform() && applied) setNotificationStatus(await routineNotificationStatus(routines));
       else if ((await notificationPermission()) === 'granted') setError('알림을 적용하지 못했어요. 다시 시도해주세요.');
-    } catch { setError('알림을 예약하지 못했어요. 잠시 후 다시 적용해주세요.'); }
+    } catch (err) { setError(friendlyError(err)); }
     finally { setBusy(false); }
   };
 
@@ -120,7 +122,7 @@ export default function SettingsA1() {
     setTestSent(false);
     setTestBusy(true);
     try { await sendTestNotification(); setTestSent(true); }
-    catch { setError('시험 알림을 보내지 못했어요. 알림 권한을 확인해주세요.'); }
+    catch (err) { setError(friendlyError(err)); }
     finally { setTestBusy(false); }
   };
 
@@ -155,6 +157,17 @@ export default function SettingsA1() {
 
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 6 }}>🔔 관리 시간 알림</p>
+        {Capacitor.getPlatform() === 'ios' && <fieldset disabled={busy || testBusy} style={{ border: 0, padding: 0, margin: '12px 0' }}>
+          <legend style={{ fontWeight: 700 }}>알림 소리</legend>
+          {([{ value: true, label: '음성 안내' }, { value: false, label: '기본 알림음' }]).map((option) => <label key={String(option.value)} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48 }}>
+            <input type="radio" name="notification-sound" checked={voiceEnabled === option.value} onChange={() => {
+              setVoiceNotificationsEnabled(option.value); setVoiceEnabled(option.value);
+              setNotificationStatus(null); setTestSent(false); setError('');
+            }} />{option.label}
+          </label>)}
+          <p>{voiceEnabled ? `“${CARE_VOICE_TEXT}”라고 한 번 안내해요. 처음 준비할 때는 앱을 잠시 켜두세요.` : '아이폰의 기본 알림음으로 알려드려요.'}</p>
+          <p style={{ marginTop: 8 }}>소리를 바꾼 뒤 아래에서 알림을 다시 적용해주세요. 무음 모드에서는 음성이 들리지 않을 수 있어요.</p>
+        </fieldset>}
         {notifState === 'granted' ? (
           <>
             <p style={{ color: 'var(--success)', fontWeight: 700 }}>알림이 허용되어 있어요 ✓</p>
@@ -163,8 +176,8 @@ export default function SettingsA1() {
                 ? notificationStatus.expected > 0 ? `매일 알림 ${notificationStatus.scheduled}개 예약을 기기에서 확인했어요.` : '사용 중인 관리 시간 알림이 없어요.'
                 : notificationStatus ? `기기에서 ${notificationStatus.expected}개 중 ${notificationStatus.scheduled}개 예약을 확인했어요. 다시 적용해주세요.` : '기기의 예약 상태를 아직 확인하지 못했어요.'}
             </p>}
-            <BigButton variant="ghost" onClick={turnOnNotifications} disabled={busy}>알림 다시 적용</BigButton>
-            {Capacitor.isNativePlatform() && <BigButton variant="ghost" onClick={testNotification} disabled={busy || testBusy}>10초 후 시험 알림</BigButton>}
+            <BigButton variant="ghost" onClick={turnOnNotifications} disabled={busy || testBusy}>{busy ? '알림 준비 중...' : '알림 다시 적용'}</BigButton>
+            {Capacitor.isNativePlatform() && <BigButton variant="ghost" onClick={testNotification} disabled={busy || testBusy}>{testBusy ? '시험 알림 준비 중...' : '10초 후 시험 알림'}</BigButton>}
             {testSent && <p role="status">10초 후 시험 알림을 요청했어요. 홈 화면으로 나가거나 화면을 잠가 확인해주세요.</p>}
             {Capacitor.isNativePlatform() && <p style={{ marginTop: 8, color: 'var(--text-sub)' }}>예약이 있어도 집중 모드나 알림 요약 설정에 따라 표시가 늦어질 수 있어요. 시험 알림이 보이지 않으면 아이폰 설정에서 틀니케어의 잠금 화면·소리 허용을 확인해주세요.</p>}
           </>

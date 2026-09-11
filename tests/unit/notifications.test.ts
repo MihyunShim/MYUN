@@ -1,17 +1,20 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Routine } from '../../src/lib/types';
 
 const native = vi.hoisted(() => ({
   checkPermissions: vi.fn(), requestPermissions: vi.fn(), getPending: vi.fn(), cancel: vi.fn(), schedule: vi.fn(),
-  isNative: vi.fn(),
+  isNative: vi.fn(), platform: vi.fn(), prepareVoice: vi.fn(),
 }));
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: native.isNative } }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: native.isNative, getPlatform: native.platform }, registerPlugin: () => ({ prepare: native.prepareVoice }) }));
 vi.mock('@capacitor/local-notifications', () => ({ LocalNotifications: native }));
 const routine: Routine = { id: 'r1', user_id: 'elder', slot: 'A01', label: '아침 식후', alarm_time: '08:00:00', enabled: true };
 
 beforeEach(() => {
   vi.resetModules(); vi.resetAllMocks();
-  vi.unstubAllGlobals(); native.isNative.mockReturnValue(true);
+  vi.unstubAllGlobals(); localStorage.clear(); native.isNative.mockReturnValue(true);
+  native.platform.mockReturnValue('ios');
+  native.prepareVoice.mockResolvedValue({ sound: 'denture-care-ko-v1.caf' });
   native.checkPermissions.mockResolvedValue({ display: 'granted' });
   native.requestPermissions.mockResolvedValue({ display: 'granted' });
   let pending: any[] = [{ id: 1 }, { id: 101 }, { id: 199 }, { id: 999 }];
@@ -41,7 +44,7 @@ describe('네이티브 알림 예약', () => {
     const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
     expect(await api.scheduleRoutines([routine])).toBe(true);
     expect(native.cancel).toHaveBeenCalledWith({ notifications: [{ id: 1 }, { id: 101 }] });
-    expect(native.schedule.mock.calls[0][0].notifications[0]).toMatchObject({ id: 101, schedule: { on: { hour: 8, minute: 0 } } });
+    expect(native.schedule.mock.calls[0][0].notifications[0]).toMatchObject({ id: 101, sound: 'denture-care-ko-v1.caf', schedule: { on: { hour: 8, minute: 0 } } });
   });
   it('권한 거부를 예약 성공으로 표시하지 않는다', async () => {
     const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
@@ -114,6 +117,44 @@ describe('네이티브 알림 예약', () => {
     });
     expect(await api.scheduleRoutines([routine])).toBe(false);
     expect((await native.getPending()).notifications.some((n: { id: number }) => n.id === 101)).toBe(false);
+  });
+
+  it('음성 준비에 실패하면 기존 예약을 취소하지 않고 재시도할 수 있다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    native.prepareVoice.mockRejectedValueOnce(new Error('no Korean voice'));
+    await expect(api.scheduleRoutines([routine])).rejects.toThrow('VOICE_PREPARATION_FAILED');
+    expect(native.cancel).not.toHaveBeenCalled();
+    expect(native.schedule).not.toHaveBeenCalled();
+    expect(await api.scheduleRoutines([routine])).toBe(true);
+  });
+  it('기본음 선택 시 음성 생성을 건너뛰고 기존 음성 예약을 미적용으로 표시한다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    const voice = await import('../../src/lib/voiceNotifications');
+    await api.scheduleRoutines([routine]);
+    voice.setVoiceNotificationsEnabled(false);
+    expect((await api.routineNotificationStatus([routine])).verified).toBe(false);
+    native.prepareVoice.mockClear();
+    await api.sendTestNotification();
+    expect(native.prepareVoice).not.toHaveBeenCalled();
+    expect(native.schedule.mock.lastCall?.[0].notifications[0].sound).toBe('default');
+  });
+  it('시험 알림은 음성 파일 완성 후 10초 뒤로 예약한다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    let ready!: (value: { sound: string }) => void;
+    native.prepareVoice.mockImplementationOnce(() => new Promise((resolve) => { ready = resolve; }));
+    const request = api.sendTestNotification();
+    await vi.waitFor(() => expect(ready).toBeTypeOf('function'));
+    expect(native.schedule).not.toHaveBeenCalled();
+    const before = Date.now(); ready({ sound: 'denture-care-ko-v1.caf' }); await request;
+    const notice = native.schedule.mock.lastCall?.[0].notifications[0];
+    expect(notice.sound).toBe('denture-care-ko-v1.caf');
+    expect(notice.schedule.at.getTime()).toBeGreaterThanOrEqual(before + 10000);
+  });
+  it('음성 준비 도중 로그아웃하면 시험 알림을 예약하지 않는다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    native.prepareVoice.mockImplementationOnce(async () => { api.setNotificationOwner(null); return { sound: 'denture-care-ko-v1.caf' }; });
+    await expect(api.sendTestNotification()).rejects.toThrow('AUTH_REQUIRED');
+    expect(native.schedule).not.toHaveBeenCalled();
   });
 
 });

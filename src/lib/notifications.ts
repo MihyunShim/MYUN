@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { SLOT_DETAIL, type Routine, type SlotId } from './types';
 import { isValidTime } from './dates';
+import { expectedNotificationSound, prepareNotificationSound } from './voiceNotifications';
 
 const IDS: Record<SlotId, number> = { A00: 100, A01: 101, A02: 102, A03: 103, A04: 104 };
 const ROUTINE_IDS = [...Object.values(IDS), 1, 2, 3, 4, 5];
@@ -43,6 +44,7 @@ async function inspectPending(routines: Routine[], userId: string): Promise<Rout
   const scheduled = active.filter((r) => {
     const [hour, minute] = r.alarm_time.split(':').map(Number);
     return notifications.some((n) => n.id === IDS[r.slot] && n.extra?.owner === userId
+      && (Capacitor.getPlatform() !== 'ios' || (n as typeof n & { sound?: string }).sound === expectedNotificationSound())
       && n.schedule?.on?.hour === hour && n.schedule?.on?.minute === minute);
   }).length;
   const unexpected = notifications.some((n) => ROUTINE_IDS.includes(n.id)
@@ -90,6 +92,9 @@ export function scheduleRoutines(routines: Routine[]): Promise<boolean> {
     }
     if ((await notificationPermission()) !== 'granted') return false;
     if (!stillOwned()) return false;
+    // Finish voice generation before replacing working reminders.
+    const sound = active.length ? await prepareNotificationSound() : 'default';
+    if (!stillOwned()) return false;
     await cancelOwned(ROUTINE_IDS);
     if (!stillOwned()) return false;
     if (!active.length) return true;
@@ -100,7 +105,7 @@ export function scheduleRoutines(routines: Routine[]): Promise<boolean> {
           id: IDS[r.slot],
           title: `${r.label} 틀니 관리 시간이에요`,
           body: SLOT_DETAIL[r.slot].action,
-          sound: 'default',
+          sound,
           extra: { slot: r.slot, owner: requestedOwner },
           // Capacitor 6 iOS의 on은 UNCalendarNotificationTrigger(repeats: true)로 생성된다.
           schedule: Capacitor.isNativePlatform()
@@ -129,11 +134,13 @@ export async function sendTestNotification(): Promise<void> {
   if ((await notificationPermission()) !== 'granted') throw new Error('NOTIFICATION_PERMISSION');
   await enqueue(async () => {
     if (!requestedOwner || owner !== requestedOwner) throw new Error('AUTH_REQUIRED');
+    const sound = await prepareNotificationSound();
+    if (!requestedOwner || owner !== requestedOwner) throw new Error('AUTH_REQUIRED');
     await LocalNotifications.schedule({ notifications: [{
     id: 199,
     title: '틀니케어 알림 확인',
     body: '시험 알림이 도착했어요. 관리 시간 예약 상태는 앱 설정에서 확인해주세요.',
-    sound: 'default',
+    sound,
     schedule: { at: new Date(Date.now() + 10000) },
     }] });
   });
