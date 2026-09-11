@@ -10,6 +10,7 @@ import { isValidTime } from '../lib/dates';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { VoiceNotificationControls } from '../components/VoiceNotificationControls';
 import DentureDateFields from '../components/DentureDateFields';
+import { FamilyInviteCard } from '../components/FamilyInviteCard';
 import { AccountActions, AppInformation } from '../components/AccountActions';
 
 // A1 설정 화면 (docs/설계/01 A1-6): 알림, 글자 크기, 알림 시간, 틀니 정보, 초대코드, 로그아웃
@@ -250,15 +251,7 @@ export default function SettingsA1() {
         </BigButton>
       </Card>
 
-      <Card style={{ textAlign: 'center', background: 'var(--primary-light)' }}>
-        <p style={{ fontWeight: 800 }}>💗 가족 초대코드</p>
-        <p style={{ fontSize: 30, fontWeight: 800, letterSpacing: 6, color: 'var(--primary)', margin: '8px 0' }}>
-          {profile?.invite_code ?? '------'}
-        </p>
-        <p style={{ color: 'var(--text-sub)', fontSize: 15 }}>
-          가족이 이 코드를 입력하면 관리 현황을 함께 볼 수 있어요
-        </p>
-      </Card>
+      <FamilyInviteCard />
 
       <BigButton variant="ghost" onClick={signOut}>로그아웃</BigButton>
       <AppInformation />

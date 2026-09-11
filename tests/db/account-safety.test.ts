@@ -53,6 +53,13 @@ describe('실제 SQL 정책과 본인 탈퇴', () => {
     expect((await asUser(guardian, 'select * from public.routines')).rows).toHaveLength(1);
     expect((await asUser(guardian, 'select * from public.list_my_care_links()')).rows[0]).toMatchObject({ other_name: '시험 사용자' });
   });
+  it('잘못된 코드는 연결을 만들지 않고 같은 코드 재시도는 중복 연결을 만들지 않는다', async () => {
+    await expect(asUser(guardian, "select public.link_with_invite_code('BAD000', '어머니')")).rejects.toThrow(/INVALID_CODE/);
+    expect((await pg.query('select * from public.care_links')).rows).toHaveLength(0);
+    await asUser(guardian, "select public.link_with_invite_code(' elder1 ', '어머니')");
+    await asUser(guardian, "select public.link_with_invite_code('ELDER1', '아버지')");
+    expect((await pg.query('select relation from public.care_links')).rows).toEqual([{ relation: '아버지' }]);
+  });
   it('보호자가 연결 대상을 다른 사용자로 바꿀 수 없다', async () => {
     await link();
     await expect(asUser(guardian, `update public.care_links set elder_id = '${stranger}'`)).rejects.toThrow(/permission denied/i);

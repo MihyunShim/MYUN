@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
+import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { Card, BigButton, Field, ErrorBox } from './ui';
 
 export function AppInformation() {
@@ -42,6 +43,7 @@ export function AccountActions() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useRefreshOnResume(load);
 
   const unlink = async (id: string) => {
     if (operation.current) return;
@@ -88,6 +90,7 @@ export function AccountActions() {
   return <Card>
     <p style={{ fontWeight: 800, marginBottom: 8 }}>계정과 가족 연결</p>
     {loading && <p role="status">가족 연결을 확인하고 있어요...</p>}
+    <BigButton variant="ghost" disabled={loading || busy} onClick={() => void load()}>연결 목록 새로고침</BigButton>
     <ErrorBox message={loadError} />
     {loadError && <BigButton variant="ghost" disabled={loading || busy} onClick={() => void load()}>가족 연결 다시 확인</BigButton>}
     {!loading && !loadError && links.length === 0 && <p>연결된 가족이 없어요.</p>}

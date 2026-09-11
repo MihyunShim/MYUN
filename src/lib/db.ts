@@ -24,6 +24,9 @@ export function friendlyError(err: unknown): string {
   const m = errorSignature(err);
   if (err instanceof Error && err.message.startsWith('VOICE_PREPARATION_FAILED: ')) return err.message.slice('VOICE_PREPARATION_FAILED: '.length);
   if (m.includes('voice_preparation_failed')) return '한국어 음성 안내를 준비하지 못했어요. 앱을 켜둔 채 다시 시도하거나 기본 알림음을 선택해주세요.';
+  if (m.includes('guardian_required')) return '보호자 계정으로 로그인한 뒤 연결해주세요.';
+  if (m.includes('cannot_link_self')) return '본인 계정에는 연결할 수 없어요. 보호자의 별도 계정을 사용해주세요.';
+  if (m.includes('link_with_invite_code') && m.includes('pgrst202')) return '가족 연결 기능을 아직 사용할 수 없어요. 앱 운영자에게 문의해주세요.';
   if (m.includes('invalid_routine_time')) return '관리 시간을 다시 골라주세요.';
   if (m.includes('pgrst202') || m.includes('delete_own_account') || m.includes('list_my_care_links')) return '계정 관리 기능을 아직 사용할 수 없어요. 앱 운영자에게 문의해주세요.';
 
@@ -47,7 +50,7 @@ export function friendlyError(err: unknown): string {
   if (m.includes('email not confirmed')) return '이메일 확인이 아직 안 됐어요. 메일함을 확인해주세요.';
   if (m.includes('password should be at least')) return '비밀번호는 6자 이상으로 만들어주세요.';
   if (m.includes('valid email')) return '이메일 주소를 다시 확인해주세요.';
-  if (m.includes('invalid_code')) return '코드를 다시 확인해주세요. 부모님 앱의 설정에서 볼 수 있어요.';
+  if (m.includes('invalid_code')) return '초대코드가 맞지 않거나 변경됐어요. 틀니 사용자 앱의 설정에서 최신 코드를 확인해주세요.';
 
   // 5xx = 서버 쪽 문제
   if (m.includes('500') || m.includes('502') || m.includes('503') || m.includes('504')) {
