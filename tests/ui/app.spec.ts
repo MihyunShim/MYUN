@@ -179,11 +179,11 @@ test('제작 연월은 저장·재실행 후 유지되고 편집하면 이전 �
   await page.getByRole('button', { name: '알겠어요' }).click();
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('만든 연도', { exact: true }).fill('2020');
-  await page.getByLabel('만든 월', { exact: true }).selectOption('3');
+  await page.getByRole('combobox', { name: '만든 월', exact: true }).selectOption('3');
   await page.getByRole('button', { name: '틀니 정보 저장', exact: true }).click();
   await expect(page.getByText('· 저장됨 ✓', { exact: true })).toBeVisible();
   expect(state.denture.made_year).toBe(2020); expect(state.denture.made_month).toBe(3);
-  await page.getByLabel('만든 월', { exact: true }).selectOption('4');
+  await page.getByRole('combobox', { name: '만든 월', exact: true }).selectOption('4');
   await expect(page.getByText('· 저장됨 ✓', { exact: true })).toHaveCount(0);
   state.failSave = true;
   await page.getByRole('button', { name: '틀니 정보 저장', exact: true }).click();
@@ -192,7 +192,7 @@ test('제작 연월은 저장·재실행 후 유지되고 편집하면 이전 �
   await page.reload();
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await expect(page.getByLabel('만든 연도', { exact: true })).toHaveValue('2020');
-  await expect(page.getByLabel('만든 월', { exact: true })).toHaveValue('3');
+  await expect(page.getByRole('combobox', { name: '만든 월', exact: true })).toHaveValue('3');
   await expect(page.getByText(/설치 버전: 2.0.0/)).toBeVisible();
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('denture-date.png'), fullPage: true });
