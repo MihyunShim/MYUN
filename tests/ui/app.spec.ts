@@ -10,7 +10,7 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
   const access = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated' })}.fixture`;
   const session = { access_token: access, token_type: 'bearer', expires_in: 3600, refresh_token: 'fixture', user };
   const profile = { id, name: '시험 사용자', role, birth_year: 1950, invite_code: 'TEST01', font_size_mode: 'large' };
-  const state = { failSave: false, linked: false, failRead: false, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, logs: [] as Record<string, unknown>[] };
+  const state = { failSave: false, linked: false, failRead: false, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, denture: { made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null as string | null }, logs: [] as Record<string, unknown>[] };
   const routines = DEFAULT_ROUTINES.map((r, i) => ({ id: `r${i}`, user_id: elderId, slot: r.slot, label: r.label, alarm_time: r.time, enabled: true }));
   await page.routeWebSocket('wss://denturecare-test.supabase.co/**', (socket) => socket.close());
   await page.route('https://denturecare-test.supabase.co/**', async (route) => {
@@ -45,7 +45,13 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
       if (method === 'DELETE') { state.logs = []; return respond(null); }
       return respond(state.logs);
     }
-    if (path.endsWith('/dentures')) return respond({ made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null });
+    if (path.endsWith('/dentures')) {
+      if (method === 'POST') {
+        if (state.failSave) return respond({ message: 'network unavailable' }, 503);
+        Object.assign(state.denture, request.postDataJSON()); return respond(state.denture, 201);
+      }
+      return respond(state.denture);
+    }
     if (path.endsWith('/checkup_schedules')) {
       if (method === 'POST') {
         if (state.failSave) return respond({ message: 'network unavailable' }, 503);
@@ -79,7 +85,7 @@ async function login(page: Page) {
 async function noOverflow(page: Page) {
   const layout = await page.evaluate(() => ({
     width: window.innerWidth, content: document.documentElement.scrollWidth,
-    outside: Array.from(document.querySelectorAll('input, label, button, p')).filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
+    outside: Array.from(document.querySelectorAll('input, select, label, button, p')).filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
       .map((el) => ({ tag: el.tagName, label: el.getAttribute('aria-label') || el.textContent?.slice(0, 40), right: el.getBoundingClientRect().right })),
   }));
   expect(layout.content <= layout.width, JSON.stringify(layout)).toBe(true);
@@ -166,4 +172,28 @@ test('치과 지정일은 저장 실패 후 재시도·재실행·삭제를 지�
   await page.getByRole('button', { name: '저장한 날짜 삭제', exact: true }).click();
   await expect(page.getByRole('button', { name: '안내받은 검진일 입력하기' })).toBeVisible();
   expect(state.schedule).toBeNull();
+});
+
+test('제작 연월은 저장·재실행 후 유지되고 편집하면 이전 성공 표시를 지운다', async ({ page }, testInfo) => {
+  const state = await fixture(page); await login(page);
+  await page.getByRole('button', { name: '알겠어요' }).click();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByLabel('만든 연도', { exact: true }).fill('2020');
+  await page.getByLabel('만든 월', { exact: true }).selectOption('3');
+  await page.getByRole('button', { name: '틀니 정보 저장', exact: true }).click();
+  await expect(page.getByText('· 저장됨 ✓', { exact: true })).toBeVisible();
+  expect(state.denture.made_year).toBe(2020); expect(state.denture.made_month).toBe(3);
+  await page.getByLabel('만든 월', { exact: true }).selectOption('4');
+  await expect(page.getByText('· 저장됨 ✓', { exact: true })).toHaveCount(0);
+  state.failSave = true;
+  await page.getByRole('button', { name: '틀니 정보 저장', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('연결');
+  expect(state.denture.made_month).toBe(3);
+  await page.reload();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await expect(page.getByLabel('만든 연도', { exact: true })).toHaveValue('2020');
+  await expect(page.getByLabel('만든 월', { exact: true })).toHaveValue('3');
+  await expect(page.getByText(/설치 버전: 2.0.0/)).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('denture-date.png'), fullPage: true });
 });

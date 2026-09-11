@@ -62,3 +62,12 @@ Apple은 앱 내 계정 삭제, 접근하기 쉬운 개인정보처리방침과 
 2026년 9월 11일 공식 요구사항 확인: **2026년 4월 28일부터 App Store Connect 업로드에는 Xcode 26 이상 및 iOS 26 SDK 이상이 필요**합니다. [Apple Upcoming Requirements](https://developer.apple.com/news/upcoming-requirements/). 실제 제출일에도 다시 확인합니다. 기존 Xcode 16.4 통과와 서명 없는 시뮬레이터/실기기 SDK 빌드만으로 배포 서명·업로드·실기기 동작까지 검증됐다고 판단하지 않습니다.
 
 Apple 2.1은 완성된 앱과 심사 접근성·작동하는 서버를, 1.4는 건강정보 정확성을, 5.1.1은 개인정보처리방침과 계정 삭제 등을 다룹니다. 소셜 로그인을 네이티브에 추가하면 4.8의 로그인 조건도 해당 여부를 검토합니다. [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/). 앱에 포함된 SDK의 데이터 처리도 App Privacy 응답에 반영해야 합니다. [Manage app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/).
+
+## 음성 알림 추가 검수
+
+- [ ] 실제 아이폰에서 목소리 미리 듣기의 문장·발음·음량 확인
+- [ ] 미리 듣기 후 잠금 화면 시험 알림에서 같은 문장 수신 확인 (두 검사는 별개)
+- [ ] 음성 다시 준비하기 실패 시 기존 정상 파일/예약 보존
+- [ ] 앱이 백그라운드로 가거나 다른 오디오가 시작되면 미리 듣기 중단
+- [ ] 기본음 전환 후 재적용, 이전 음성 예약이 남지 않는지 확인
+- [ ] 설치 버전과 기기/iOS 버전을 기록하고 판단; 기본음만 들리는 보고를 해결로 처리하지 않음

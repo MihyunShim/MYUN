@@ -8,7 +8,8 @@ import { enableNotifications, notificationPermission, scheduleRoutines, sendTest
 import { Screen, Title, Card, BigButton, Field, Splash, ErrorBox } from '../components/ui';
 import { isValidTime } from '../lib/dates';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
-import { voiceNotificationsEnabled, setVoiceNotificationsEnabled, CARE_VOICE_TEXT } from '../lib/voiceNotifications';
+import { VoiceNotificationControls } from '../components/VoiceNotificationControls';
+import DentureDateFields from '../components/DentureDateFields';
 import { AccountActions, AppInformation } from '../components/AccountActions';
 
 // A1 설정 화면 (docs/설계/01 A1-6): 알림, 글자 크기, 알림 시간, 틀니 정보, 초대코드, 로그아웃
@@ -20,7 +21,7 @@ export default function SettingsA1() {
   const [notifState, setNotifState] = useState<NotificationPermission>('prompt');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(voiceNotificationsEnabled);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [testSent, setTestSent] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<RoutineNotificationStatus | null>(null);
@@ -82,7 +83,7 @@ export default function SettingsA1() {
   };
 
   const updateTime = async (r: Routine, time: string) => {
-    if (busy) return;
+    if (busy || testBusy || voiceBusy) return;
     if (!isValidTime(time)) { setError('관리 시간을 다시 골라주세요.'); return; }
     setError('');
     setSaved(false);
@@ -146,7 +147,8 @@ export default function SettingsA1() {
     finally { setBusy(false); }
   };
 
-  const recallPreview = calculateRecall(Number(madeYear), Number(madeMonth));
+  const recallPreview = /^\d{4}$/.test(madeYear) && /^([1-9]|1[0-2])$/.test(madeMonth)
+    ? calculateRecall(Number(madeYear), Number(madeMonth)) : null;
   const fontMode = profile?.font_size_mode ?? 'normal';
 
   return (
@@ -157,17 +159,8 @@ export default function SettingsA1() {
 
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 6 }}>🔔 관리 시간 알림</p>
-        {Capacitor.getPlatform() === 'ios' && <fieldset disabled={busy || testBusy} style={{ border: 0, padding: 0, margin: '12px 0' }}>
-          <legend style={{ fontWeight: 700 }}>알림 소리</legend>
-          {([{ value: true, label: '음성 안내' }, { value: false, label: '기본 알림음' }]).map((option) => <label key={String(option.value)} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48 }}>
-            <input type="radio" name="notification-sound" checked={voiceEnabled === option.value} onChange={() => {
-              setVoiceNotificationsEnabled(option.value); setVoiceEnabled(option.value);
-              setNotificationStatus(null); setTestSent(false); setError('');
-            }} />{option.label}
-          </label>)}
-          <p>{voiceEnabled ? `“${CARE_VOICE_TEXT}”라고 한 번 안내해요. 처음 준비할 때는 앱을 잠시 켜두세요.` : '아이폰의 기본 알림음으로 알려드려요.'}</p>
-          <p style={{ marginTop: 8 }}>소리를 바꾼 뒤 아래에서 알림을 다시 적용해주세요. 무음 모드에서는 음성이 들리지 않을 수 있어요.</p>
-        </fieldset>}
+        {Capacitor.getPlatform() === 'ios' && <VoiceNotificationControls disabled={busy || testBusy}
+          onBusyChange={setVoiceBusy} onChange={() => { setNotificationStatus(null); setTestSent(false); setError(''); }} />}
         {notifState === 'granted' ? (
           <>
             <p style={{ color: 'var(--success)', fontWeight: 700 }}>알림이 허용되어 있어요 ✓</p>
@@ -176,8 +169,8 @@ export default function SettingsA1() {
                 ? notificationStatus.expected > 0 ? `매일 알림 ${notificationStatus.scheduled}개 예약을 기기에서 확인했어요.` : '사용 중인 관리 시간 알림이 없어요.'
                 : notificationStatus ? `기기에서 ${notificationStatus.expected}개 중 ${notificationStatus.scheduled}개 예약을 확인했어요. 다시 적용해주세요.` : '기기의 예약 상태를 아직 확인하지 못했어요.'}
             </p>}
-            <BigButton variant="ghost" onClick={turnOnNotifications} disabled={busy || testBusy}>{busy ? '알림 준비 중...' : '알림 다시 적용'}</BigButton>
-            {Capacitor.isNativePlatform() && <BigButton variant="ghost" onClick={testNotification} disabled={busy || testBusy}>{testBusy ? '시험 알림 준비 중...' : '10초 후 시험 알림'}</BigButton>}
+            <BigButton variant="ghost" onClick={turnOnNotifications} disabled={busy || testBusy || voiceBusy}>{busy ? '알림 준비 중...' : '알림 다시 적용'}</BigButton>
+            {Capacitor.isNativePlatform() && <BigButton variant="ghost" onClick={testNotification} disabled={busy || testBusy || voiceBusy}>{testBusy ? '시험 알림 준비 중...' : '10초 후 시험 알림'}</BigButton>}
             {testSent && <p role="status">10초 후 시험 알림을 요청했어요. 홈 화면으로 나가거나 화면을 잠가 확인해주세요.</p>}
             {Capacitor.isNativePlatform() && <p style={{ marginTop: 8, color: 'var(--text-sub)' }}>예약이 있어도 집중 모드나 알림 요약 설정에 따라 표시가 늦어질 수 있어요. 시험 알림이 보이지 않으면 아이폰 설정에서 틀니케어의 잠금 화면·소리 허용을 확인해주세요.</p>}
           </>
@@ -240,13 +233,12 @@ export default function SettingsA1() {
           제작 시기를 기록해둘 수 있어요. 검진 일정은 치과 검진 화면에서 입력해주세요.
           {dentureSaved && <strong style={{ color: 'var(--success)' }}> · 저장됨 ✓</strong>}
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginBottom: 10 }}>
-          <Field label="만든 연도" value={madeYear} onChange={setMadeYear} inputMode="numeric" placeholder="2024" />
-          <Field label="만든 월" value={madeMonth} onChange={setMadeMonth} inputMode="numeric" placeholder="3" />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-          <Field label="다니는 치과" value={clinicName} onChange={setClinicName} placeholder="예) 튼튼치과" />
-          <Field label="치과 전화번호" value={clinicPhone} onChange={setClinicPhone} inputMode="tel" placeholder="예) 02-123-4567" />
+        <DentureDateFields year={madeYear} month={madeMonth} disabled={busy}
+          onYearChange={(value) => { setMadeYear(value); setDentureSaved(false); }}
+          onMonthChange={(value) => { setMadeMonth(value); setDentureSaved(false); }} />
+        <div style={{ display: 'grid', gap: 12, margin: '12px 0' }}>
+          <Field label="다니는 치과" value={clinicName} onChange={(value) => { setClinicName(value); setDentureSaved(false); }} placeholder="예) 튼튼치과" />
+          <Field label="치과 전화번호" value={clinicPhone} onChange={(value) => { setClinicPhone(value); setDentureSaved(false); }} inputMode="tel" placeholder="예) 02-123-4567" />
         </div>
         {recallPreview && (
           <p style={{ color: 'var(--primary)', fontWeight: 700, marginBottom: 12 }}>

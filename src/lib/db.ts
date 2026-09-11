@@ -22,6 +22,7 @@ function errorSignature(err: unknown): string {
 // 문자열(err.message)과 에러 객체 둘 다 받을 수 있다
 export function friendlyError(err: unknown): string {
   const m = errorSignature(err);
+  if (err instanceof Error && err.message.startsWith('VOICE_PREPARATION_FAILED: ')) return err.message.slice('VOICE_PREPARATION_FAILED: '.length);
   if (m.includes('voice_preparation_failed')) return '한국어 음성 안내를 준비하지 못했어요. 앱을 켜둔 채 다시 시도하거나 기본 알림음을 선택해주세요.';
   if (m.includes('invalid_routine_time')) return '관리 시간을 다시 골라주세요.';
   if (m.includes('pgrst202') || m.includes('delete_own_account') || m.includes('list_my_care_links')) return '계정 관리 기능을 아직 사용할 수 없어요. 앱 운영자에게 문의해주세요.';
