@@ -82,17 +82,17 @@ export default function Onboarding() {
       {step === 0 && (<>
         <Title sub="어떻게 불러드릴까요?">만나서 반가워요!</Title>
         <Field label="이름" value={name} onChange={setName} placeholder="예) 김순자" />
-        <Field label="태어난 연도" value={birthYear} onChange={setBirthYear} inputMode="numeric" placeholder="예) 1948" />
-        <BigButton onClick={() => setStep(1)} disabled={!name.trim() || !/^\d{4}$/.test(birthYear) || Number(birthYear) < 1900 || Number(birthYear) > new Date().getFullYear()}>다음</BigButton>
+        <Field label="태어난 연도 (선택)" value={birthYear} onChange={setBirthYear} inputMode="numeric" placeholder="예) 1948" />
+        <BigButton onClick={() => setStep(1)} disabled={!name.trim() || (!!birthYear && (!/^\d{4}$/.test(birthYear) || Number(birthYear) < 1900 || Number(birthYear) > new Date().getFullYear()))}>다음</BigButton>
       </>)}
 
       {step === 1 && (<>
-        <Title sub="치과 검진 시기를 계산하는 데 꼭 필요해요">틀니를 언제 만드셨나요?</Title>
+        <Title sub="틀니 사용 기간을 기록할 수 있어요. 검진일은 치과 안내에 따라 따로 정해요.">틀니를 언제 만드셨나요?</Title>
         <Field label="만든 연도" value={madeYear} onChange={setMadeYear} inputMode="numeric" placeholder="예) 2024" />
         <Field label="만든 월" value={madeMonth} onChange={setMadeMonth} inputMode="numeric" placeholder="예) 3" />
         {recall && (
           <Card style={{ background: 'var(--primary-light)', borderColor: 'var(--primary)' }}>
-            <p style={{ fontWeight: 800, color: 'var(--primary)' }}>지금은 「{recall.phase}」예요</p>
+            <p style={{ fontWeight: 800, color: 'var(--primary)' }}>{recall.phase}</p>
             <p style={{ color: 'var(--text-sub)', marginTop: 4 }}>{recall.note}</p>
           </Card>
         )}

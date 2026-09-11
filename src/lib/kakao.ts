@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { db } from './db';
 
 // 카카오 로그인 (Supabase OAuth)
@@ -19,6 +20,7 @@ export async function applyPendingRole(userId: string): Promise<boolean> {
     pending = JSON.parse(sessionStorage.getItem(PENDING_ROLE_KEY) ?? 'null');
   } catch { clearPendingRole(); return false; }
   if (!pending || !['A1', 'A2'].includes(pending.role ?? '') || !pending.at
+    || typeof pending.at !== 'number' || !Number.isFinite(pending.at) || pending.at > Date.now()
     || Date.now() - pending.at > 30 * 60 * 1000) {
     clearPendingRole(); return false;
   }
@@ -29,7 +31,8 @@ export async function applyPendingRole(userId: string): Promise<boolean> {
   ]);
   if (profile.error || routines.error || links.error) throw profile.error || routines.error || links.error;
   // 가입 선택으로 기존 계정의 역할과 화면을 바꾸지 않는다.
-  if (!profile.data || new Date(profile.data.created_at).getTime() < pending.at - 60000
+  const createdAt = profile.data ? new Date(profile.data.created_at).getTime() : NaN;
+  if (!Number.isFinite(createdAt) || createdAt < pending.at - 60000
     || routines.count || links.count) { clearPendingRole(); return false; }
   const { error } = await db().from('profiles').update({ role: pending.role }).eq('id', userId).select('id').single();
   if (error) throw error;
@@ -38,6 +41,7 @@ export async function applyPendingRole(userId: string): Promise<boolean> {
 }
 
 export async function kakaoLogin(): Promise<string | null> {
+  if (Capacitor.isNativePlatform()) return '아이폰 앱에서는 이메일로 로그인해주세요.';
   // 바로 이동하지 않고 주소만 받아서, 설정이 안 된 경우를 먼저 감지한다
   const { data, error } = await db().auth.signInWithOAuth({
     provider: 'kakao',

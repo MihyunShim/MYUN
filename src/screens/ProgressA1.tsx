@@ -43,12 +43,12 @@ export default function ProgressA1() {
   const week = weeklyStats(logs);
   // 습관화 단계: 30일/90일 기준 (프로토타입 계승)
   const phase = streak < 30 ? 1 : streak < 90 ? 2 : 3;
-  const phaseLabel = ['습관 만들기 (1~29일)', '습관 다지기 (30~89일)', '몸에 뱄어요! (90일+)'][phase - 1];
+  const phaseLabel = ['기록 시작 (1~29일)', '꾸준한 기록 (30~89일)', '오랜 기록 (90일+)'][phase - 1];
   const phaseEmoji = ['🌱', '🌿', '🌳'][phase - 1];
 
   return (
     <Screen>
-      <Title sub="꾸준함이 잇몸 건강을 지켜요">나의 진행률</Title>
+      <Title sub="매일 남긴 관리 기록을 확인해요">나의 진행률</Title>
 
       <Card style={{ textAlign: 'center', background: 'var(--primary-light)' }}>
         <p style={{ fontSize: 48 }}>{phaseEmoji}</p>
@@ -86,7 +86,7 @@ export default function ProgressA1() {
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 6 }}>💡 알고 계셨나요?</p>
         <p style={{ color: 'var(--text-sub)' }}>
-          같은 행동을 66일 정도 반복하면 몸이 기억해요. 지금처럼만 하시면 틀니 관리가 양치질처럼 자연스러워져요.
+          기록을 빠뜨린 날이 있어도 오늘부터 다시 시작해보세요. 기록 단계는 앱의 격려 표시이며 건강 상태를 평가하지 않아요.
         </p>
       </Card>
     </Screen>

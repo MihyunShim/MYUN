@@ -10,6 +10,7 @@ export default defineConfig({
   projects: [
     { name: 'phone', use: { browserName: 'chromium', viewport: { width: 390, height: 844 } } },
     { name: 'small-phone', use: { browserName: 'chromium', viewport: { width: 320, height: 568 } } },
+    { name: 'webkit-iphone', use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
     command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4173 --strictPort',

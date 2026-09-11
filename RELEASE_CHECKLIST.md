@@ -2,6 +2,8 @@
 
 이번 브랜치는 아이폰 개발 설치와 기능 검수를 위한 변경입니다. 운영 DB 적용, Apple 계정 서명, TestFlight 업로드, App Store 제출은 실행하지 않았습니다.
 
+최종 판단은 기능별 통과 근거로 합니다. 높은 평가 점수나 아래 항목의 구현만으로 출시를 승인하지 않습니다. 결과가 없는 항목은 미검증으로 남기며 실제 기기·실제 시험 서버·사용자 관찰을 자동 테스트로 대체하지 않습니다.
+
 ## 이번에 준비한 것
 
 - 인증 콜백에서 DB 요청 분리, 실패 안내와 재시도, 계정 전환의 늦은 응답 차단
@@ -21,7 +23,7 @@ npx playwright install --with-deps chromium
 npm run test:ui
 ```
 
-단위 테스트는 날짜·인증·네이티브 알림 API 호출을 검증합니다. DB 테스트는 PGlite PostgreSQL에 Supabase의 `auth.uid()`와 기본 권한을 재현해 실제 `001`, `003`, `004` SQL의 RLS·연결 해제·연쇄 삭제를 실행합니다. `002`의 cron 실행과 Supabase Realtime 전달은 이 테스트에 포함되지 않습니다. 화면 테스트는 가짜 Supabase 응답을 사용한 390/320px 화면입니다.
+단위 테스트는 날짜·인증·네이티브 알림 API 호출 등을 검증합니다. DB 테스트는 PGlite PostgreSQL에 Supabase의 `auth.uid()`와 기본 권한을 재현합니다. 실행하는 SQL 목록과 세부 검증 범위는 현재 테스트 코드·CI 결과를 확인합니다. `002`의 cron 실행과 Supabase Realtime 전달은 이 테스트에 포함되지 않습니다. 화면 테스트는 가짜 Supabase 응답을 사용하므로 실제 서버 연결 검증과 구분합니다.
 
 GitHub PR의 **iPhone readiness** 검사에서 실행 결과를 확인하세요. `phone-test-report`에는 화면 이미지와 실패 추적 자료가 담깁니다. iOS CI는 실제 프로젝트와 플러그인을 컴파일하지만 Apple 계정 서명, 실기기 알림 전달, 실제 Supabase 연결 성공을 보증하지 않습니다. 실기기 확인은 [설치 안내](README_설치방법.md)의 체크 항목을 사용합니다.
 
@@ -39,6 +41,24 @@ GitHub PR의 **iPhone readiness** 검사에서 실행 결과를 확인하세요.
 | 심사 자료 | 앱 설명·지원 URL·스크린샷·연령 등급·검수용 계정, 실제 작동하는 서버 준비 |
 | 최종 검수·배포 | 실기기 체크 완료 → TestFlight 내부 테스트 → 발견한 문제 수정 → 사용자 최종 확인 후 제출 |
 
+## 출시를 막는 조건과 필요한 증거
+
+| 게이트 | 통과 근거 | 기록란 |
+|---|---|---|
+| 서버 변경 | 시험 DB에 누락 SQL을 순서대로 적용. 새 `005` 적용 전후 기존 기록 보존과 치과 지정 검진일 저장·수정 확인. 이미 적용한 `001`~`004` 덮어 재실행 금지 | |
+| 실제 기기 | 아이폰 모델·iOS·Xcode·커밋 기록. 설치·재로그인·완료 취소·권한 거절 복구·잠금 알림·다음 날 반복 확인 | |
+| 가족 접근 | 별도 사용자/보호자 계정으로 연결·해제, 이전 코드 재사용 차단, 해제 후 상대 기기 조회 차단 | |
+| 데이터 손실·오인 방지 | 저장 실패를 성공으로 표시하지 않음. 탈퇴 취소 시 보존, 확정 시 본인 삭제·상대 계정 보존. 응급/푸시 오인 사례 없음 | |
+| 고령자 사용성 | [관찰 계획](USABILITY_TEST_PLAN.md)의 실제 인원·독립 성공률·시간·미해결 문제 기록. 임의 성공 결과 작성 금지 | |
+| 임상 표현 | 검진 일정은 담당 치과 지정일을 우선 사용. 건강정보마다 실제 근거·적용 조건·검토자·검토일 확인 | |
+| 운영 개인정보 | [운영자 확인표](PRIVACY_POLICY_WORKSHEET.md) 작성·검토 후 실제 공개 정책, 지원 경로, App Privacy와 서버 보관/삭제 설정 일치 | |
+| 제출 빌드 | 제출 시 허용되는 Xcode/SDK로 Release Archive, 배포 서명, App Store Connect 업로드·검증 및 TestFlight 실행 | |
+| 최종 승인 | 모든 치명 오류 해결, 남은 제약 설명, 미현님 실기기 검수 및 제출 판단 기록 | |
+
+치명 오류는 타인 정보 노출, 의도치 않은 삭제, 저장 거짓 성공, 필수 화면 진입 불가, 건강정보/도움 요청에 대한 위험한 오해를 포함합니다. 한 건이라도 남으면 제출하지 않습니다. 보호자 백그라운드 푸시를 제공하지 않는 버전은 기능 설명과 스토어 소개에도 그 범위를 정확히 표시합니다.
+
 Apple은 앱 내 계정 삭제, 접근하기 쉬운 개인정보처리방침과 지원 연락처, 제출 전 기기 검증을 요구합니다. 건강 관련 정보는 정확성을 검토하고 의료 결정 전에 전문가에게 확인하도록 안내해야 합니다. [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
 
-출시 시점의 빌드 도구 요구사항은 [Apple Upcoming Requirements](https://developer.apple.com/news/upcoming-requirements/)에서 다시 확인합니다. 현재 앱의 Capacitor 6 사용과 시뮬레이터 빌드 성공만으로 제출 요건 충족을 판단하지 않습니다.
+2026년 9월 11일 공식 요구사항 확인: **2026년 4월 28일부터 App Store Connect 업로드에는 Xcode 26 이상 및 iOS 26 SDK 이상이 필요**합니다. [Apple Upcoming Requirements](https://developer.apple.com/news/upcoming-requirements/). 실제 제출일에도 다시 확인합니다. 기존 Xcode 16.4 통과와 서명 없는 시뮬레이터/실기기 SDK 빌드만으로 배포 서명·업로드·실기기 동작까지 검증됐다고 판단하지 않습니다.
+
+Apple 2.1은 완성된 앱과 심사 접근성·작동하는 서버를, 1.4는 건강정보 정확성을, 5.1.1은 개인정보처리방침과 계정 삭제 등을 다룹니다. 소셜 로그인을 네이티브에 추가하면 4.8의 로그인 조건도 해당 여부를 검토합니다. [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/). 앱에 포함된 SDK의 데이터 처리도 App Privacy 응답에 반영해야 합니다. [Manage app privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/).

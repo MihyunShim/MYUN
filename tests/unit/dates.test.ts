@@ -24,11 +24,13 @@ describe('사용자의 달력 날짜', () => {
     }
     expect(isValidDentureDate(2026, 9, now)).toBe(true);
   });
-  it('잘못된 제작일로 검진 일정을 만들지 않는다', () => {
+  it('제작 기간만 표시하고 건강 상태나 검진 간격을 추정하지 않는다', () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 8, 10));
     expect(calculateRecall(2027, 1)).toBeNull();
     expect(calculateRecall(2026, 13)).toBeNull();
-    expect(calculateRecall(2026, 9)?.intervalMonths).toBe(1);
+    expect(calculateRecall(2026, 9)?.monthsSince).toBe(0);
+    expect(calculateRecall(2020, 1)).not.toHaveProperty('intervalMonths');
+    expect(calculateRecall(2020, 1)).not.toHaveProperty('urgency');
   });
   it('시간 선택기와 SQL TIME 값을 검증한다', () => {
     for (const time of ['00:00', '23:59', '07:00:00']) expect(isValidTime(time)).toBe(true);

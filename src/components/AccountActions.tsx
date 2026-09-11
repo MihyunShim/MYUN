@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { Card, BigButton, Field, ErrorBox } from './ui';
@@ -25,18 +25,26 @@ export function AccountActions() {
   const [confirmation, setConfirmation] = useState('');
   const [unlinking, setUnlinking] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [deleted, setDeleted] = useState(false);
+  const operation = useRef(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
     try {
       const result = await db().rpc('list_my_care_links');
       if (result.error) throw result.error;
       setLinks(result.data ?? []);
-    } catch (err) { setError(friendlyError(err)); }
+    } catch (err) { setLoadError(friendlyError(err)); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
   const unlink = async (id: string) => {
-    if (busy) return;
+    if (operation.current) return;
+    operation.current = true;
     setBusy(true);
     setError('');
     try {
@@ -46,40 +54,57 @@ export function AccountActions() {
       await load();
       await refresh();
     } catch (err) { setError(friendlyError(err)); }
-    finally { setBusy(false); }
+    finally { operation.current = false; setBusy(false); }
   };
 
   const deleteAccount = async () => {
-    if (confirmation !== '탈퇴' || busy) return;
+    if (confirmation !== '탈퇴' || operation.current || deleted) return;
+    operation.current = true;
     setBusy(true);
     setError('');
     try {
       // 서버는 전달된 사용자 ID가 아닌, 검증된 로그인 계정(auth.uid)만 삭제한다.
       const result = await db().rpc('delete_own_account');
       if (result.error) throw result.error;
+      setDeleted(true);
+      setConfirmation('');
       await signOut();
     } catch (err) { setError(friendlyError(err)); }
-    finally { setBusy(false); }
+    finally { operation.current = false; setBusy(false); }
   };
+
+  if (deleted) return <Card>
+    <p role="status">계정과 기록을 삭제했어요. 이 기기의 로그인을 종료하고 있어요.</p>
+    <ErrorBox message={error} />
+    <BigButton disabled={busy} onClick={async () => {
+      if (operation.current) return;
+      operation.current = true; setBusy(true); setError('');
+      try { await signOut(); } catch (err) { setError(friendlyError(err)); }
+      finally { operation.current = false; setBusy(false); }
+    }}>{busy ? '로그인 종료 중...' : '로그인 종료 다시 시도'}</BigButton>
+  </Card>;
 
   return <Card>
     <p style={{ fontWeight: 800, marginBottom: 8 }}>계정과 가족 연결</p>
+    {loading && <p role="status">가족 연결을 확인하고 있어요...</p>}
+    <ErrorBox message={loadError} />
+    {loadError && <BigButton variant="ghost" disabled={loading || busy} onClick={() => void load()}>가족 연결 다시 확인</BigButton>}
+    {!loading && !loadError && links.length === 0 && <p>연결된 가족이 없어요.</p>}
     <ErrorBox message={error} />
-    {error && <BigButton variant="ghost" onClick={() => { setError(''); void load(); }}>다시 확인</BigButton>}
     {links.map((link) => <div key={link.link_id} style={{ margin: '12px 0', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
       <p style={{ fontWeight: 700 }}>{link.other_name || '연결된 가족'}</p>
       <p style={{ fontSize: 15 }}>등록한 관계: {link.relation || '가족'}</p>
       {unlinking === link.link_id ? <>
-        <p>연결을 해제하면 이 가족은 관리 현황과 도움 요청을 볼 수 없어요.</p>
+        <p>연결을 해제하면 이 연결을 통한 관리 현황과 도움 요청 공유가 중단돼요. 기존 초대코드는 바뀌며, 다시 연결하려면 새 코드가 필요해요.</p>
         <BigButton variant="danger" disabled={busy} onClick={() => unlink(link.link_id)}>연결 해제하기</BigButton>
         <BigButton variant="ghost" disabled={busy} onClick={() => setUnlinking(null)}>취소</BigButton>
-      </> : <BigButton variant="ghost" onClick={() => setUnlinking(link.link_id)}>가족 연결 해제</BigButton>}
+      </> : <BigButton variant="ghost" disabled={busy} onClick={() => setUnlinking(link.link_id)}>가족 연결 해제</BigButton>}
     </div>)}
     {deleting ? <>
       <p style={{ margin: '12px 0' }}>탈퇴하면 계정, 틀니 정보, 관리·검진 기록, 가족 연결과 본인의 도움 요청이 삭제돼요. 되돌릴 수 없어요. 가족의 계정은 유지돼요.</p>
       <Field label="확인하려면 ‘탈퇴’를 입력해주세요" value={confirmation} onChange={setConfirmation} />
       <BigButton variant="danger" disabled={busy || confirmation !== '탈퇴'} onClick={deleteAccount}>{busy ? '처리 중...' : '계정과 기록 영구 삭제'}</BigButton>
       <BigButton variant="ghost" disabled={busy} onClick={() => { setDeleting(false); setConfirmation(''); }}>취소</BigButton>
-    </> : <BigButton variant="ghost" onClick={() => setDeleting(true)}>회원 탈퇴</BigButton>}
+    </> : <BigButton variant="ghost" disabled={busy} onClick={() => setDeleting(true)}>회원 탈퇴</BigButton>}
   </Card>;
 }

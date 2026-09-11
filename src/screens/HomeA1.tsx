@@ -4,7 +4,7 @@ import { useAuth } from '../state/AuthContext';
 import { SLOT_DETAIL, todayStr, EMERGENCY_TYPES, type Routine, type RoutineLog } from '../lib/types';
 import { scheduleRoutines } from '../lib/notifications';
 import { pickTodayTip, type DailyTip } from '../lib/tips';
-import { Screen, Card, BigButton, Splash, ErrorBox } from '../components/ui';
+import { Screen, Card, BigButton, Splash, ErrorBox, Modal } from '../components/ui';
 import { isValidTime } from '../lib/dates';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 
@@ -142,7 +142,7 @@ export default function HomeA1() {
         <ErrorBox message={error} />
         <button onClick={() => setDetail(null)} style={{
           alignSelf: 'flex-start', background: 'none', color: 'var(--primary)',
-          fontWeight: 700, fontSize: 18, minHeight: 44, padding: 0,
+          fontWeight: 700, fontSize: '1em', minHeight: 44, padding: 0,
         }}>
           ← 뒤로
         </button>
@@ -150,7 +150,7 @@ export default function HomeA1() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{
             background: '#FDF1E3', color: 'var(--accent)', fontWeight: 800,
-            padding: '8px 14px', borderRadius: 99, fontSize: 17,
+            padding: '8px 14px', borderRadius: 99, fontSize: 'max(17px, 1em)',
           }}>
             {detail.label}
           </span>
@@ -161,7 +161,7 @@ export default function HomeA1() {
             value={detail.alarm_time.slice(0, 5)}
             onChange={(e) => changeTime(detail, e.target.value)}
             style={{
-              fontSize: 17, fontWeight: 800, padding: '6px 12px',
+              fontSize: 'max(17px, 1em)', fontWeight: 800, padding: '6px 12px',
               border: '1.5px solid var(--primary)', borderRadius: 99,
               background: 'var(--primary-light)', color: 'var(--primary)',
             }}
@@ -172,20 +172,20 @@ export default function HomeA1() {
           <p style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.5 }}>
             {SLOT_DETAIL[detail.slot].action}
           </p>
-          <p style={{ color: 'var(--text-sub)', marginTop: 10, fontSize: 18 }}>
+          <p style={{ color: 'var(--text-sub)', marginTop: 10, fontSize: '1em' }}>
             🧴 {SLOT_DETAIL[detail.slot].tool}
           </p>
         </Card>
 
         {isDone ? (<>
           <Card style={{ background: '#F0FDF4', borderColor: 'var(--success)', textAlign: 'center' }}>
-            <p style={{ fontWeight: 800, color: 'var(--success)', fontSize: 19 }}>✅ 이미 완료한 항목이에요</p>
+            <p style={{ fontWeight: 800, color: 'var(--success)', fontSize: 'max(19px, 1em)' }}>✅ 이미 완료한 항목이에요</p>
           </Card>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <BigButton onClick={() => setDetail(null)}>돌아가기</BigButton>
             <button onClick={() => uncheck(detail.slot)} disabled={checking === detail.slot} style={{
               background: 'var(--surface)', color: 'var(--danger)',
-              border: '2px solid #FECACA', fontWeight: 700, fontSize: 18,
+              border: '2px solid #FECACA', fontWeight: 700, fontSize: '1em',
               minHeight: 56, borderRadius: 12,
             }}>
               {checking === detail.slot ? '...' : '↩ 완료 취소'}
@@ -206,32 +206,29 @@ export default function HomeA1() {
       {error && <BigButton variant="ghost" onClick={() => { setError(''); void load(); }}>다시 불러오기</BigButton>}
       {/* 오늘의 정보 팝업 (하루 1회) */}
       {tip && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}>
-          <div style={{
-            background: 'var(--surface)', borderRadius: 20, padding: 24,
-            maxWidth: 420, width: '100%', maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto',
-          }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+        <Modal labelledBy="daily-tip-title" onClose={closeTip}>
+            <p style={{ fontSize: 'max(16px, 0.9em)', fontWeight: 700, color: 'var(--accent)' }}>
               💡 오늘의 정보 · {tip.category}
             </p>
             <p style={{ fontSize: 40, textAlign: 'center', margin: '10px 0' }}>{tip.emoji}</p>
-            <p style={{ fontSize: 21, fontWeight: 800, textAlign: 'center' }}>{tip.title}</p>
+            <h2 id="daily-tip-title" style={{ fontSize: 'max(21px, 1.1em)', fontWeight: 800, textAlign: 'center' }}>{tip.title}</h2>
             <p style={{ color: 'var(--text)', textAlign: 'center', margin: '12px 0' }}>{tip.mainMessage}</p>
             <div style={{ background: 'var(--primary-light)', borderRadius: 12, padding: '10px 14px', marginBottom: 8 }}>
-              <p style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 15 }}>{tip.detailLabel}</p>
+              <p style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 'max(16px, 0.9em)' }}>{tip.detailLabel}</p>
               <p style={{ fontWeight: 700 }}>{tip.detail}</p>
             </div>
-            <p style={{ color: 'var(--text-sub)', fontSize: 15, marginBottom: 16 }}>💬 {tip.tip}</p>
+            <p style={{ color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)', marginBottom: 16 }}>💬 {tip.tip}</p>
+            {tip.sourceUrl && <p style={{ fontSize: 'max(16px, 0.9em)', marginBottom: 16 }}>
+              <a href={tip.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', display: 'inline-block', padding: '8px 0' }}>
+                출처: {tip.sourceTitle} (새 창)
+              </a>
+              {tip.reviewedAt && <span style={{ display: 'block', color: 'var(--text-sub)' }}>자료 확인일: {tip.reviewedAt}</span>}
+            </p>}
             <BigButton onClick={closeTip}>알겠어요</BigButton>
-          </div>
-        </div>
+        </Modal>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <p style={{ color: 'var(--text-sub)' }}>{dateLabel}</p>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>
@@ -239,9 +236,9 @@ export default function HomeA1() {
           </h1>
         </div>
         <button onClick={signOut} style={{
-          background: 'none', color: 'var(--text-sub)', fontSize: 15,
+          background: 'none', color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)',
           whiteSpace: 'nowrap', flexShrink: 0,
-          textDecoration: 'underline', minHeight: 44,
+          textDecoration: 'underline', minHeight: 48,
         }}>
           로그아웃
         </button>
@@ -249,11 +246,11 @@ export default function HomeA1() {
 
       {/* 오늘 진행률 */}
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           <span style={{ fontWeight: 700 }}>오늘의 관리</span>
           <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{done} / {routines.length} 완료</span>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div role="progressbar" aria-label="오늘의 관리 완료" aria-valuemin={0} aria-valuemax={routines.length || 1} aria-valuenow={done} aria-valuetext={`${routines.length}개 중 ${done}개 완료`} style={{ display: 'flex', gap: 6 }}>
           {routines.map((r) => (
             <div key={r.slot} style={{
               flex: 1, height: 12, borderRadius: 6,
@@ -289,16 +286,17 @@ export default function HomeA1() {
       {/* 응급 도움 요청 */}
       {sosSent ? (
         <Card style={{ background: '#F0FDF4', borderColor: 'var(--success)', borderWidth: 2, textAlign: 'center' }}>
-          <p style={{ fontWeight: 800, color: 'var(--success)', fontSize: 20 }}>도움 요청을 남겼어요 ✓</p>
-          <p style={{ color: 'var(--text-sub)', marginTop: 6 }}>가족이 앱을 열면 확인할 수 있어요. 바로 도움이 필요하면 가족이나 치과에 직접 전화해주세요.</p>
+          <p role="status" style={{ fontWeight: 800, color: 'var(--success)', fontSize: 20 }}>도움 요청을 남겼어요 ✓</p>
+          <p style={{ color: 'var(--text-sub)', marginTop: 6 }}>가족이 앱을 열면 확인해요. 급하면 직접 전화해주세요.</p>
         </Card>
       ) : sosOpen ? (
         <Card style={{ borderColor: 'var(--danger)', borderWidth: 2 }}>
           <p style={{ fontWeight: 800, color: 'var(--danger)', fontSize: 20, marginBottom: 12 }}>어디가 불편하세요?</p>
+          <p style={{ marginBottom: 12 }}>가족이 앱을 열어야 확인해요. 급하면 직접 전화해주세요.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {EMERGENCY_TYPES.map((t) => (
               <button key={t.id} onClick={() => sendSOS(t.id)} disabled={sendingSOS} style={{
-                minHeight: 56, fontSize: 19, fontWeight: 700, textAlign: 'left',
+                minHeight: 56, fontSize: 'max(19px, 1em)', fontWeight: 700, textAlign: 'left',
                 padding: '0 16px', background: '#FEF2F2', color: 'var(--danger)',
                 border: '1px solid #FECACA', borderRadius: 12,
               }}>
@@ -321,19 +319,18 @@ export default function HomeA1() {
         {routines.map((r) => {
           const isDone = doneSlots.has(r.slot);
           return (
-            <Card key={r.slot} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '14px 16px', opacity: isDone ? 0.85 : 1, cursor: 'pointer',
+            <Card key={r.slot} className="routine-row" style={{
+              padding: '14px 16px',
             }}>
-              <div onClick={() => setDetail(r)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                <span style={{ fontSize: 26 }}>{isDone ? '✅' : '⬜'}</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 700 }}>{r.alarm_time.slice(0, 5)} · {r.label} <span style={{ color: 'var(--text-sub)', fontWeight: 400, fontSize: 15 }}>›</span></p>
-                  <p style={{ color: 'var(--text-sub)', fontSize: 16 }}>{SLOT_DETAIL[r.slot].action}</p>
-                </div>
-              </div>
+              <button type="button" className="routine-open" onClick={() => setDetail(r)} aria-label={`${r.label}, ${isDone ? '완료' : '미완료'}, ${r.alarm_time.slice(0, 5)}, 관리 방법 보기`}>
+                <span aria-hidden="true" style={{ fontSize: 26 }}>{isDone ? '✅' : '⬜'}</span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: 'block', fontWeight: 700 }}>{r.alarm_time.slice(0, 5)} · {r.label} <span style={{ color: 'var(--text-sub)', fontWeight: 400, fontSize: 'max(16px, 0.9em)' }}>›</span></span>
+                  <span style={{ display: 'block', color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)' }}>{SLOT_DETAIL[r.slot].action}</span>
+                </span>
+              </button>
               {!isDone && (
-                <button onClick={() => check(r.slot)} disabled={checking === r.slot} style={{
+                <button type="button" className="routine-check" aria-label={`${r.label} 했어요`} onClick={() => check(r.slot)} disabled={checking === r.slot} style={{
                   background: 'var(--primary-light)', color: 'var(--primary)',
                   fontWeight: 700, padding: '0 18px', minHeight: 48,
                 }}>

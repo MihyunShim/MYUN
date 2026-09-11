@@ -4,7 +4,7 @@ import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import type { Routine } from '../lib/types';
 import { calculateRecall } from '../lib/recall';
-import { enableNotifications, notificationPermission, scheduleRoutines, sendTestNotification, type NotificationPermission } from '../lib/notifications';
+import { enableNotifications, notificationPermission, scheduleRoutines, sendTestNotification, type NotificationPermission, routineNotificationStatus, type RoutineNotificationStatus } from '../lib/notifications';
 import { Screen, Title, Card, BigButton, Field, Splash, ErrorBox } from '../components/ui';
 import { isValidTime } from '../lib/dates';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
@@ -20,6 +20,8 @@ export default function SettingsA1() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<RoutineNotificationStatus | null>(null);
 
   // 틀니 정보 수정
   const [madeYear, setMadeYear] = useState('');
@@ -46,14 +48,23 @@ export default function SettingsA1() {
         setClinicPhone(d.data.clinic_phone ?? '');
       }
       setNotifState(perm);
+      if (Capacitor.isNativePlatform() && perm === 'granted') {
+        setNotificationStatus(await routineNotificationStatus((r.data as Routine[]) ?? []));
+      } else setNotificationStatus(null);
       } catch (err) { setError(friendlyError(err)); }
       finally { setLoading(false); }
   }, [session]);
   useEffect(() => { void load(); }, [load]);
   const refreshPermission = useCallback(async () => {
-    try { setNotifState(await notificationPermission()); }
+    try {
+      const permission = await notificationPermission();
+      setNotifState(permission);
+      if (Capacitor.isNativePlatform() && permission === 'granted') {
+        setNotificationStatus(await routineNotificationStatus(routines));
+      } else setNotificationStatus(null);
+    }
     catch { setError('알림 설정을 확인하지 못했어요. 잠시 후 다시 시도해주세요.'); }
-  }, []);
+  }, [routines]);
   useRefreshOnResume(refreshPermission);
 
   if (loading) return <Splash text="설정을 불러오는 중..." />;
@@ -80,7 +91,12 @@ export default function SettingsA1() {
     if (result.error) throw result.error;
     setRoutines(next);
     setSaved(true);
-    try { await scheduleRoutines(next); }
+    setNotificationStatus(null);
+    try {
+      const applied = await scheduleRoutines(next);
+      if (Capacitor.isNativePlatform() && applied) setNotificationStatus(await routineNotificationStatus(next));
+      setNotifState(await notificationPermission());
+    }
     catch { setError('시간은 저장했지만 알림을 바꾸지 못했어요. 알림 다시 적용을 눌러주세요.'); }
     } catch (err) { setError(friendlyError(err)); }
     finally { setBusy(false); }
@@ -89,9 +105,12 @@ export default function SettingsA1() {
   const turnOnNotifications = async () => {
     setError('');
     setBusy(true);
+    setNotificationStatus(null);
     try {
-      await enableNotifications(routines);
+      const applied = await enableNotifications(routines);
       setNotifState(await notificationPermission());
+      if (Capacitor.isNativePlatform() && applied) setNotificationStatus(await routineNotificationStatus(routines));
+      else if ((await notificationPermission()) === 'granted') setError('알림을 적용하지 못했어요. 다시 시도해주세요.');
     } catch { setError('알림을 예약하지 못했어요. 잠시 후 다시 적용해주세요.'); }
     finally { setBusy(false); }
   };
@@ -99,8 +118,10 @@ export default function SettingsA1() {
   const testNotification = async () => {
     setError('');
     setTestSent(false);
+    setTestBusy(true);
     try { await sendTestNotification(); setTestSent(true); }
     catch { setError('시험 알림을 보내지 못했어요. 알림 권한을 확인해주세요.'); }
+    finally { setTestBusy(false); }
   };
 
   const saveDenture = async () => {
@@ -137,9 +158,15 @@ export default function SettingsA1() {
         {notifState === 'granted' ? (
           <>
             <p style={{ color: 'var(--success)', fontWeight: 700 }}>알림이 허용되어 있어요 ✓</p>
+            {Capacitor.isNativePlatform() && <p role="status" style={{ margin: '8px 0', color: notificationStatus?.verified ? 'var(--success)' : 'var(--text-sub)' }}>
+              {notificationStatus?.verified
+                ? notificationStatus.expected > 0 ? `매일 알림 ${notificationStatus.scheduled}개 예약을 기기에서 확인했어요.` : '사용 중인 관리 시간 알림이 없어요.'
+                : notificationStatus ? `기기에서 ${notificationStatus.expected}개 중 ${notificationStatus.scheduled}개 예약을 확인했어요. 다시 적용해주세요.` : '기기의 예약 상태를 아직 확인하지 못했어요.'}
+            </p>}
             <BigButton variant="ghost" onClick={turnOnNotifications} disabled={busy}>알림 다시 적용</BigButton>
-            {Capacitor.isNativePlatform() && <BigButton variant="ghost" onClick={testNotification}>10초 후 시험 알림</BigButton>}
-            {testSent && <p role="status">10초 뒤 알림이 와요. 홈 화면으로 나가거나 화면을 잠가 확인해주세요.</p>}
+            {Capacitor.isNativePlatform() && <BigButton variant="ghost" onClick={testNotification} disabled={busy || testBusy}>10초 후 시험 알림</BigButton>}
+            {testSent && <p role="status">10초 후 시험 알림을 요청했어요. 홈 화면으로 나가거나 화면을 잠가 확인해주세요.</p>}
+            {Capacitor.isNativePlatform() && <p style={{ marginTop: 8, color: 'var(--text-sub)' }}>예약이 있어도 집중 모드나 알림 요약 설정에 따라 표시가 늦어질 수 있어요. 시험 알림이 보이지 않으면 아이폰 설정에서 틀니케어의 잠금 화면·소리 허용을 확인해주세요.</p>}
           </>
         ) : notifState === 'unsupported' ? (
           <p>이 환경은 관리 시간 알림을 지원하지 않아요. 아이폰 앱에서 이용해주세요.</p>
@@ -197,7 +224,7 @@ export default function SettingsA1() {
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 4 }}>🦷 틀니 정보</p>
         <p style={{ color: 'var(--text-sub)', fontSize: 15, marginBottom: 12 }}>
-          제작 시기가 바뀌면 검진 주기도 다시 계산돼요
+          제작 시기를 기록해둘 수 있어요. 검진 일정은 치과 검진 화면에서 입력해주세요.
           {dentureSaved && <strong style={{ color: 'var(--success)' }}> · 저장됨 ✓</strong>}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginBottom: 10 }}>
@@ -210,7 +237,7 @@ export default function SettingsA1() {
         </div>
         {recallPreview && (
           <p style={{ color: 'var(--primary)', fontWeight: 700, marginBottom: 12 }}>
-            → 「{recallPreview.phase}」 · 검진 주기 {recallPreview.intervalMonths}개월
+            {recallPreview.phase}
           </p>
         )}
         <BigButton onClick={saveDenture} disabled={busy || !recallPreview}>

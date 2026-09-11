@@ -7,7 +7,10 @@ const env = { ...loadEnv('production', process.cwd(), 'VITE_'), ...process.env }
 if (Number(process.versions.node.split('.')[0]) < 22) errors.push('Node.js 22 이상을 설치해주세요.');
 if (process.platform !== 'darwin') errors.push('아이폰 설치 준비는 Xcode가 설치된 Mac에서 실행해주세요.');
 else {
-  try { execFileSync('xcodebuild', ['-version'], { stdio: 'pipe' }); }
+  try {
+    const version = execFileSync('xcodebuild', ['-version'], { encoding: 'utf8', stdio: 'pipe' });
+    if (Number(version.match(/Xcode (\d+)/)?.[1] ?? 0) < 26) errors.push('출시 준비 빌드는 Xcode 26 이상을 선택해주세요. 아이폰의 iOS를 지원하는 버전이 필요해요.');
+  }
   catch { errors.push('Xcode를 한 번 실행해 초기 설치를 마치고 Settings > Locations에서 Command Line Tools를 선택해주세요.'); }
 }
 try {

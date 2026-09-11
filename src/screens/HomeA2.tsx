@@ -93,20 +93,20 @@ export default function HomeA2() {
 
   return (
     <Screen>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>
           {profile?.name ? `${profile.name}님, ` : ''}안녕하세요 💗
         </h1>
         <button onClick={signOut} style={{
-          background: 'none', color: 'var(--text-sub)', fontSize: 15,
+          background: 'none', color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)',
           whiteSpace: 'nowrap', flexShrink: 0,
-          textDecoration: 'underline', minHeight: 44,
+          textDecoration: 'underline', minHeight: 48,
         }}>
           로그아웃
         </button>
       </div>
 
-      <p style={{ color: 'var(--text-sub)', fontSize: 15 }}>앱을 열어두면 현황이 갱신돼요. 앱을 닫으면 도움 요청 푸시 알림은 오지 않아요. 급한 경우 직접 전화해주세요.</p>
+      <p style={{ color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)' }}>앱을 닫으면 도움 요청 푸시 알림은 오지 않아요. 급하면 직접 전화해주세요.</p>
       <BigButton variant="ghost" onClick={load}>현황 새로고침</BigButton>
       {/* 도움 요청 배너 (읽지 않은 것) */}
       {unreadEmergency.map((a) => (
@@ -130,13 +130,13 @@ export default function HomeA2() {
         <p style={{ fontSize: 22, fontWeight: 800, margin: '4px 0 14px' }}>
           {elder?.name ?? '연결된 가족'}님의 오늘
         </p>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           <span style={{ fontWeight: 700 }}>틀니 관리</span>
           <span style={{ fontWeight: 800, color: done === routines.length ? 'var(--success)' : 'var(--primary)' }}>
             {done} / {routines.length} 완료
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div role="progressbar" aria-label="가족의 관리 완료" aria-valuemin={0} aria-valuemax={routines.length || 1} aria-valuenow={done} aria-valuetext={`${routines.length}개 중 ${done}개 완료`} style={{ display: 'flex', gap: 6 }}>
           {routines.map((r) => (
             <div key={r.slot} style={{
               flex: 1, height: 12, borderRadius: 6,
@@ -167,7 +167,7 @@ export default function HomeA2() {
               <p style={{ fontWeight: 700 }}>
                 {a.type === 'emergency' ? `🆘 ${emergencyLabel(a.detail)}` : a.detail}
               </p>
-              <p style={{ color: 'var(--text-sub)', fontSize: 15 }}>{timeAgo(a.created_at)}</p>
+              <p style={{ color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)' }}>{timeAgo(a.created_at)}</p>
             </div>
           ))}
         </div>

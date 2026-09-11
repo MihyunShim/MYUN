@@ -14,9 +14,18 @@ beforeEach(() => {
   vi.unstubAllGlobals(); native.isNative.mockReturnValue(true);
   native.checkPermissions.mockResolvedValue({ display: 'granted' });
   native.requestPermissions.mockResolvedValue({ display: 'granted' });
-  native.getPending.mockResolvedValue({ notifications: [{ id: 1 }, { id: 101 }, { id: 999 }] });
-  native.cancel.mockResolvedValue(undefined);
-  native.schedule.mockResolvedValue({ notifications: [] });
+  let pending: any[] = [{ id: 1 }, { id: 101 }, { id: 199 }, { id: 999 }];
+  native.getPending.mockImplementation(async () => ({ notifications: pending }));
+  native.cancel.mockImplementation(async ({ notifications }) => {
+    pending = pending.filter((n) => !notifications.some((c: { id: number }) => c.id === n.id));
+  });
+  native.schedule.mockImplementation(async ({ notifications }) => {
+    for (const notification of notifications) {
+      pending = pending.filter((n) => n.id !== notification.id);
+      pending.push(notification);
+    }
+    return { notifications: notifications.map(({ id }: { id: number }) => ({ id })) };
+  });
 });
 describe('네이티브 알림 예약', () => {
   it('웹 권한을 확인할 때 알림 생성이나 권한 요청을 시도하지 않는다', async () => {
@@ -65,4 +74,46 @@ describe('네이티브 알림 예약', () => {
     await expect(api.scheduleRoutines([{ ...routine, alarm_time: '24:99' }])).rejects.toThrow('INVALID_ROUTINE_TIME');
     expect(native.schedule).not.toHaveBeenCalled();
   });
+  it('허용된 권한과 OS 실제 예약 개수를 구분하며 잘못된 시각도 감지한다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    expect(await api.notificationPermission()).toBe('granted');
+    expect(await api.routineNotificationStatus([routine])).toEqual({ expected: 1, scheduled: 0, verified: false });
+    await api.scheduleRoutines([routine]);
+    expect(await api.routineNotificationStatus([routine])).toEqual({ expected: 1, scheduled: 1, verified: true });
+    expect(await api.routineNotificationStatus([{ ...routine, alarm_time: '09:00' }])).toEqual({ expected: 1, scheduled: 0, verified: false });
+  });
+  it('플러그인이 성공을 반환해도 OS에 예약이 없으면 제한된 조회 후 실패한다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    native.schedule.mockResolvedValue({ notifications: [{ id: 101 }] });
+    await expect(api.scheduleRoutines([routine])).rejects.toThrow('NOTIFICATION_NOT_REGISTERED');
+    expect(native.schedule).toHaveBeenCalledTimes(1);
+    expect(native.getPending).toHaveBeenCalledTimes(4); // 취소용 1회 + 확인 3회
+  });
+  it('OS 등록이 약간 늦으면 재예약 없이 확인만 재시도한다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    native.getPending.mockImplementationOnce(native.getPending.getMockImplementation()!).mockResolvedValueOnce({ notifications: [] });
+    expect(await api.scheduleRoutines([routine])).toBe(true);
+    expect(native.schedule).toHaveBeenCalledTimes(1);
+    expect(native.getPending).toHaveBeenCalledTimes(3);
+  });
+  it('관리 알림을 재적용해도 시험 알림은 남고 로그아웃하면 함께 취소한다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    await api.sendTestNotification();
+    await api.scheduleRoutines([routine]);
+    expect((await native.getPending()).notifications.some((n: { id: number }) => n.id === 199)).toBe(true);
+    api.setNotificationOwner(null);
+    await api.cancelRoutineNotifications();
+    expect((await native.getPending()).notifications.map((n: { id: number }) => n.id)).toEqual([999]);
+  });
+  it('OS 예약 처리 도중 계정이 바뀌어도 이전 사용자의 알림을 남기지 않는다', async () => {
+    const api = await import('../../src/lib/notifications'); api.setNotificationOwner('elder');
+    const originalSchedule = native.schedule.getMockImplementation()!;
+    native.schedule.mockImplementationOnce(async (options) => {
+      await originalSchedule(options);
+      api.setNotificationOwner('other');
+    });
+    expect(await api.scheduleRoutines([routine])).toBe(false);
+    expect((await native.getPending()).notifications.some((n: { id: number }) => n.id === 101)).toBe(false);
+  });
+
 });

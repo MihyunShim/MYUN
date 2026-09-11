@@ -10,7 +10,7 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
   const access = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated' })}.fixture`;
   const session = { access_token: access, token_type: 'bearer', expires_in: 3600, refresh_token: 'fixture', user };
   const profile = { id, name: '시험 사용자', role, birth_year: 1950, invite_code: 'TEST01', font_size_mode: 'large' };
-  const state = { failSave: false, linked: false, failRead: false, sosWrites: 0, deletes: 0, logs: [] as Record<string, unknown>[] };
+  const state = { failSave: false, linked: false, failRead: false, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, logs: [] as Record<string, unknown>[] };
   const routines = DEFAULT_ROUTINES.map((r, i) => ({ id: `r${i}`, user_id: elderId, slot: r.slot, label: r.label, alarm_time: r.time, enabled: true }));
   await page.routeWebSocket('wss://denturecare-test.supabase.co/**', (socket) => socket.close());
   await page.route('https://denturecare-test.supabase.co/**', async (route) => {
@@ -46,6 +46,14 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
       return respond(state.logs);
     }
     if (path.endsWith('/dentures')) return respond({ made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null });
+    if (path.endsWith('/checkup_schedules')) {
+      if (method === 'POST') {
+        if (state.failSave) return respond({ message: 'network unavailable' }, 503);
+        state.schedule = request.postDataJSON(); return respond(state.schedule, 201);
+      }
+      if (method === 'DELETE') { state.schedule = null; return respond([{ user_id: elderId }]); }
+      return respond(state.schedule ? [state.schedule] : []);
+    }
     if (path.endsWith('/checkups')) return respond([]);
     if (path.endsWith('/care_links')) {
       if (method === 'HEAD') return route.fulfill({ status: 200, headers: { ...headers, 'content-range': state.linked ? '0-0/1' : '*/0' } });
@@ -65,7 +73,7 @@ async function login(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: '이미 계정이 있어요 (로그인)' }).click();
   await page.getByLabel('이메일').fill('test@example.invalid');
-  await page.getByLabel('비밀번호').fill('fixture-password');
+  await page.getByLabel('비밀번호', { exact: true }).fill('fixture-password');
   await page.getByRole('button', { name: '로그인', exact: true }).click();
 }
 async function noOverflow(page: Page) {
@@ -131,4 +139,31 @@ test('보호자 화면은 조회 실패를 빈 기록으로 표시하지 않는�
   await expect(page.getByRole('alert')).toContainText('연결');
   await expect(page.getByRole('button', { name: '가족 현황 다시 불러오기' })).toBeVisible();
   await noOverflow(page);
+});
+
+test('치과 지정일은 저장 실패 후 재시도·재실행·삭제를 지원한다', async ({ page }, testInfo) => {
+  const state = await fixture(page); await login(page);
+  await page.getByRole('button', { name: '알겠어요' }).click();
+  await page.getByRole('button', { name: '검진', exact: true }).click();
+  await page.getByRole('button', { name: '안내받은 검진일 입력하기' }).click();
+  const day = new Date(); day.setDate(day.getDate() + 7);
+  const date = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  await page.getByLabel('담당 치과에서 정한 검진일').fill(date);
+  state.failSave = true;
+  await page.getByRole('button', { name: '검진일 저장하기' }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  expect(state.schedule).toBeNull();
+  state.failSave = false;
+  await page.getByRole('button', { name: '검진일 저장하기' }).click();
+  await expect(page.getByText('치과에서 안내받은 검진일을 저장했어요.')).toBeVisible();
+  expect(state.schedule?.scheduled_on).toBe(date);
+  await page.reload();
+  await page.getByRole('button', { name: '검진', exact: true }).click();
+  await expect(page.getByRole('button', { name: '검진일 변경하기' })).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('checkup.png'), fullPage: true });
+  await page.getByRole('button', { name: '앱에서 검진일 삭제하기' }).click();
+  await page.getByRole('button', { name: '저장한 날짜 삭제', exact: true }).click();
+  await expect(page.getByRole('button', { name: '안내받은 검진일 입력하기' })).toBeVisible();
+  expect(state.schedule).toBeNull();
 });
