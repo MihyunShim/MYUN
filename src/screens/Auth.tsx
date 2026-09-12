@@ -5,11 +5,12 @@ import { kakaoLogin, rememberPendingRole, clearPendingRole } from '../lib/kakao'
 import { Screen, Title, BigButton, ErrorBox } from '../components/ui';
 import { AppInformation } from '../components/AccountActions';
 
-type Mode = 'welcome' | 'role' | 'signup' | 'login';
+type Mode = 'welcome' | 'guardian' | 'role' | 'signup' | 'login';
 
 // 회원가입/로그인 (docs/설계/01 A1-0, A2-0 진입부)
 export default function Auth() {
   const [mode, setMode] = useState<Mode>('welcome');
+  const [guardianEntry, setGuardianEntry] = useState(false);
   const [role, setRole] = useState<'A1' | 'A2'>('A1');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -95,12 +96,23 @@ export default function Auth() {
       <Screen style={{ justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', fontSize: 56 }}>🦷</div>
         <Title sub="틀니 관리, 이제 앱이 챙겨드려요">틀니케어</Title>
-        <BigButton onClick={() => navigate('role')}>처음이에요 (회원가입)</BigButton>
+        <BigButton onClick={() => { setGuardianEntry(false); navigate('role'); }}>처음이에요 (회원가입)</BigButton>
         <BigButton variant="ghost" onClick={() => navigate('login')}>이미 계정이 있어요 (로그인)</BigButton>
+        <BigButton onClick={() => { setGuardianEntry(true); setRole('A2'); navigate('guardian'); }}>가족 초대코드가 있어요</BigButton>
         <AppInformation />
       </Screen>
     );
   }
+
+  if (mode === 'guardian') return <Screen>
+    <Title sub="초대코드는 로그인 후 가족을 연결할 때 사용해요.">초대받은 가족·보호자</Title>
+    <p>먼저 보호자 본인의 계정으로 로그인해주세요. 처음이라면 아래 버튼으로 보호자 계정을 만들 수 있어요.</p>
+    <p>① 보호자 가입 또는 로그인 → ② 초대코드 입력 → ③ 가족 현황 확인</p>
+    <BigButton onClick={() => { setRole('A2'); navigate('signup'); }}>보호자 회원가입 후 연결하기</BigButton>
+    <BigButton variant="ghost" onClick={() => navigate('login')}>보호자 계정으로 로그인하기</BigButton>
+    <p>연결 후 오늘의 관리 완료 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없어요.</p>
+    <BigButton variant="ghost" onClick={() => { setGuardianEntry(false); navigate('welcome'); }}>뒤로</BigButton>
+  </Screen>;
 
   if (mode === 'role') {
     return (
@@ -125,7 +137,8 @@ export default function Auth() {
 
   return (
     <Screen>
-      <Title>{mode === 'signup' ? '회원가입' : '로그인'}</Title>
+      <Title>{guardianEntry ? (mode === 'signup' ? '보호자 회원가입' : '보호자 로그인') : mode === 'signup' ? '회원가입' : '로그인'}</Title>
+      {(guardianEntry || (mode === 'signup' && role === 'A2')) && <p>보호자 본인의 이메일을 사용해주세요. 가입·로그인을 마치면 초대코드 입력 화면이 열려요. 이미 연결했다면 가족 현황으로 이동해요.</p>}
       <form onSubmit={(event) => { event.preventDefault(); void submit(); }} aria-busy={busy} style={{ display: 'grid', gap: 16 }}>
         {mode === 'signup' && <AuthInput label="이름" name="name" autoComplete="name" value={name} onChange={setName} disabled={busy} placeholder="예) 김순자" />}
         <AuthInput label="이메일" name="email" type="email" autoComplete="username" value={email} onChange={setEmail} disabled={busy} placeholder="예) soonja@naver.com" />
@@ -144,7 +157,7 @@ export default function Auth() {
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
       <KakaoButton /></>}
-      <BigButton variant="ghost" disabled={busy} onClick={() => navigate(mode === 'signup' ? 'role' : 'welcome')}>뒤로</BigButton>
+      <BigButton variant="ghost" disabled={busy} onClick={() => navigate(guardianEntry ? 'guardian' : mode === 'signup' ? 'role' : 'welcome')}>뒤로</BigButton>
     </Screen>
   );
 }

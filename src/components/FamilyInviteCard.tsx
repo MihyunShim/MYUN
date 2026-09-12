@@ -10,7 +10,7 @@ export function FamilyInviteCard() {
   return <Card style={{ background: 'var(--primary-light)' }}>
     <h2 style={{ fontSize: '1.1em', textAlign: 'center' }}>가족 초대코드</h2>
     <p aria-label={`가족 초대코드 ${code ?? '확인 중'}`} style={{ fontSize: 30, fontWeight: 800, letterSpacing: 4, textAlign: 'center', userSelect: 'text', margin: '8px 0' }}>{code ?? '확인 중'}</p>
-    <p>보호자 휴대폰에서 별도 계정으로 가입하고 ‘가족을 도와드려요’를 선택한 뒤 이 코드를 입력해주세요.</p>
+    <p>보호자 휴대폰의 첫 화면에서 ‘가족 초대코드가 있어요’를 누르세요. 보호자 가입 또는 로그인 후 이 코드를 입력하면 연결돼요.</p>
     <p style={{ margin: '8px 0' }}>연결한 보호자는 관리·검진 기록과 도움 요청을 볼 수 있어요. 공유할 가족에게만 코드를 알려주세요.</p>
     <BigButton variant="ghost" disabled={!code || busy} onClick={async () => {
       if (!code) return;

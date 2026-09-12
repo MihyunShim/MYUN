@@ -205,7 +205,15 @@ test('제작 연월은 저장·재실행 후 유지되고 편집하면 이전 �
 
 test('보호자는 잘못된 코드 재시도 후 연결·현황 조회·해제까지 진행한다', async ({ page }, testInfo) => {
   const state = await fixture(page, 'A2'); state.failLink = true;
-  await login(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '가족 초대코드가 있어요' }).click();
+  await noOverflow(page);
+  await page.getByRole('button', { name: '보호자 계정으로 로그인하기' }).click();
+  await page.getByLabel('이메일').fill('test@example.invalid');
+  await page.getByLabel('비밀번호', { exact: true }).fill('fixture-password');
+  await page.getByRole('button', { name: '로그인', exact: true }).click();
+  await expect(page.getByText(/보호자 로그인은 완료됐어요/)).toBeVisible();
+  await noOverflow(page);
   await expect(page.getByRole('button', { name: '연결하기', exact: true })).toBeDisabled();
   await page.getByLabel('초대코드 (6자리)').fill('ab cd12');
   await expect(page.getByLabel('초대코드 (6자리)')).toHaveValue('ABCD12');

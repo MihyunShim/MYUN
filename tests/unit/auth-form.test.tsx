@@ -28,3 +28,26 @@ it('보호자 역할을 라디오로 선택하고 가입용 비밀번호 자동�
   fireEvent.click(screen.getByText('비밀번호 보기'));
   expect(screen.getByLabelText('비밀번호').getAttribute('type')).toBe('text');
 });
+
+it('초대받은 가족은 전용 버튼으로 보호자 역할이 지정된 가입을 진행한다', async () => {
+  mocks.signup.mockResolvedValue({ data: { session: null }, error: null });
+  render(<Auth />);
+  fireEvent.click(screen.getByText('가족 초대코드가 있어요'));
+  fireEvent.click(screen.getByText('보호자 회원가입 후 연결하기'));
+  fireEvent.change(screen.getByLabelText('이름'), { target: { value: '보호자' } });
+  fireEvent.change(screen.getByLabelText('이메일'), { target: { value: 'family@example.com' } });
+  fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'password' } });
+  fireEvent.submit(screen.getByLabelText('이메일').closest('form')!);
+  await screen.findByText('📮 이메일을 확인해주세요');
+  expect(mocks.signup).toHaveBeenCalledWith(expect.objectContaining({ options: { data: { role: 'A2', name: '보호자' } } }));
+  fireEvent.click(screen.getByText('로그인 화면으로'));
+  expect(screen.getByRole('heading').textContent).toBe('보호자 로그인');
+});
+it('이미 가입한 보호자는 초대 진입에서 가입 없이 로그인할 수 있다', () => {
+  render(<Auth />); fireEvent.click(screen.getByText('가족 초대코드가 있어요'));
+  fireEvent.click(screen.getByText('보호자 계정으로 로그인하기'));
+  expect(screen.queryByLabelText('이름')).toBeNull();
+  expect(screen.getByRole('heading').textContent).toBe('보호자 로그인');
+  fireEvent.click(screen.getByText('뒤로'));
+  expect(screen.getByText('보호자 회원가입 후 연결하기')).toBeTruthy();
+});
