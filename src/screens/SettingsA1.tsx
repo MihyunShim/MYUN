@@ -10,6 +10,7 @@ import { isValidTime } from '../lib/dates';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { VoiceNotificationControls } from '../components/VoiceNotificationControls';
 import DentureDateFields from '../components/DentureDateFields';
+import { GuardianRequests } from '../components/GuardianRequests';
 import { FamilyInviteCard } from '../components/FamilyInviteCard';
 import { AccountActions, AppInformation } from '../components/AccountActions';
 
@@ -252,6 +253,7 @@ export default function SettingsA1() {
       </Card>
 
       <FamilyInviteCard />
+      <GuardianRequests elder />
 
       <BigButton variant="ghost" onClick={signOut}>로그아웃</BigButton>
       <AppInformation />

@@ -105,10 +105,21 @@ export default function Auth() {
   }
 
   if (mode === 'guardian') return <Screen>
-    <Title sub="초대코드는 로그인 후 가족을 연결할 때 사용해요.">초대받은 가족·보호자</Title>
-    <p>먼저 보호자 본인의 계정으로 로그인해주세요. 처음이라면 아래 버튼으로 보호자 계정을 만들 수 있어요.</p>
-    <p>① 보호자 가입 또는 로그인 → ② 초대코드 입력 → ③ 가족 현황 확인</p>
-    <BigButton onClick={() => { setRole('A2'); navigate('signup'); }}>보호자 회원가입 후 연결하기</BigButton>
+    <Title sub="이메일·비밀번호 없이 시작해요.">초대받은 가족·보호자</Title>
+    <p>① 내 이름 입력 → ② 초대코드로 연결 요청 → ③ 사용자 승인 후 현황 확인</p>
+    <AuthInput label="보호자 이름" name="guardian-name" autoComplete="name" value={name} onChange={setName} disabled={busy} placeholder="사용자가 알아볼 수 있는 내 이름" />
+    <p>이 기기에 연결 정보가 저장돼요. 로그아웃하거나 앱 데이터를 지우거나 휴대폰을 바꾸면 다시 초대받아야 해요.</p>
+    <ErrorBox message={error} />
+    <BigButton disabled={busy || !name.trim()} onClick={async () => {
+      if (submitting.current) return;
+      submitting.current = true; setBusy(true); setError('');
+      try {
+        clearPendingRole();
+        const result = await db().auth.signInAnonymously({ options: { data: { role: 'A2', name: name.trim() } } });
+        if (result.error) throw result.error;
+      } catch (err) { setError(friendlyError(err)); }
+      finally { submitting.current = false; setBusy(false); }
+    }}>{busy ? '준비 중...' : '가입 없이 초대코드 입력하기'}</BigButton>
     <BigButton variant="ghost" onClick={() => navigate('login')}>보호자 계정으로 로그인하기</BigButton>
     <p>연결 후 오늘의 관리 완료 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없어요.</p>
     <BigButton variant="ghost" onClick={() => { setGuardianEntry(false); navigate('welcome'); }}>뒤로</BigButton>
@@ -129,7 +140,7 @@ export default function Auth() {
             </label>
           ))}
         </fieldset>
-        <BigButton onClick={() => navigate('signup')}>다음</BigButton>
+        <BigButton onClick={() => { if (role === 'A2') { setGuardianEntry(true); navigate('guardian'); } else navigate('signup'); }}>다음</BigButton>
         <BigButton variant="ghost" onClick={() => navigate('welcome')}>뒤로</BigButton>
       </Screen>
     );

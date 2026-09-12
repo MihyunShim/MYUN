@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { Screen, Title, Card, BigButton, ErrorBox } from '../components/ui';
+import { GuardianRequests } from '../components/GuardianRequests';
 import AccountScreen from './AccountScreen';
 
 const RELATIONS = ['어머니', '아버지', '배우자', '그 외 가족'];
@@ -25,7 +26,7 @@ export default function OnboardingA2() {
     setBusy(true);
     try {
       // DB의 link_with_invite_code 함수가 코드 확인 + 연결 생성을 한 번에 처리
-      const { error: err } = await db().rpc('link_with_invite_code', {
+      const { error: err } = await db().rpc('request_guardian_connection', {
         code: code.trim(),
         rel: relation,
       });
@@ -38,7 +39,7 @@ export default function OnboardingA2() {
     }
   };
 
-  if (linked) return <Screen><Title>가족과 연결했어요</Title><p role="status">이제 연결된 가족의 관리 기록과 검진일을 확인할 수 있어요.</p><p>도움 요청은 보호자 앱을 열어 확인할 수 있어요. 앱이 닫혀 있을 때의 푸시 알림은 아직 제공하지 않아요.</p><BigButton onClick={refresh}>가족 현황 보기</BigButton></Screen>;
+  if (linked) return <Screen><Title>연결 요청을 보냈어요</Title><p>사용자 앱의 설정 → 보호자 연결 요청에서 승인하면 가족 현황을 볼 수 있어요.</p><GuardianRequests /><BigButton variant="ghost" onClick={() => setLinked(false)}>코드 다시 입력하기</BigButton></Screen>;
 
   if (accountOpen) return <AccountScreen onBack={() => setAccountOpen(false)} />;
   return (
@@ -47,7 +48,7 @@ export default function OnboardingA2() {
         💗 초대코드로 가족 연결
       </Title>
 
-      <p>보호자 로그인은 완료됐어요. 이제 아래에 초대코드를 입력하고 ‘연결하기’를 눌러주세요. 연결하면 오늘의 관리 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없으며, 연결은 양쪽 설정에서 해제할 수 있어요.</p>
+      <p>보호자 준비가 완료됐어요. 아래에 초대코드를 입력하고 ‘연결 요청하기’를 눌러주세요. 사용자가 승인하면 오늘의 관리 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없으며, 연결은 양쪽 설정에서 해제할 수 있어요.</p>
       <form onSubmit={(event) => { event.preventDefault(); void link(); }} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0, gap: 16 }}>
       <label style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 8 }}>
         <span style={{ fontWeight: 700 }}>초대코드 (6자리)</span>
@@ -85,8 +86,10 @@ export default function OnboardingA2() {
       </Card>
 
       <ErrorBox message={error} />
-      <button type="submit" disabled={busy || !validCode} style={{ minHeight: 56, width: '100%', padding: 12, background: 'var(--primary)', color: '#fff', fontWeight: 700, opacity: busy || !validCode ? 0.5 : 1 }}>{busy ? '연결 중...' : '연결하기'}</button>
+      <button type="submit" disabled={busy || !validCode} style={{ minHeight: 56, width: '100%', padding: 12, background: 'var(--primary)', color: '#fff', fontWeight: 700, opacity: busy || !validCode ? 0.5 : 1 }}>{busy ? '요청 중...' : '연결 요청하기'}</button>
       </form>
+      <GuardianRequests />
+      <p>가입 없이 시작했다면 로그아웃 후에는 새 초대와 승인이 필요해요.</p>
       <BigButton variant="ghost" disabled={busy} onClick={signOut}>로그아웃</BigButton>
       <BigButton variant="ghost" disabled={busy} onClick={() => setAccountOpen(true)}>계정·앱 안내</BigButton>
     </Screen>
