@@ -48,8 +48,8 @@ export default function OnboardingA2() {
       </Title>
 
       <p>보호자 로그인은 완료됐어요. 이제 아래에 초대코드를 입력하고 ‘연결하기’를 눌러주세요. 연결하면 오늘의 관리 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없으며, 연결은 양쪽 설정에서 해제할 수 있어요.</p>
-      <form onSubmit={(event) => { event.preventDefault(); void link(); }} style={{ display: 'grid', gap: 16 }}>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <form onSubmit={(event) => { event.preventDefault(); void link(); }} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0, gap: 16 }}>
+      <label style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 8 }}>
         <span style={{ fontWeight: 700 }}>초대코드 (6자리)</span>
         <input
           value={code}
@@ -61,7 +61,7 @@ export default function OnboardingA2() {
           aria-describedby="invite-code-hint"
           placeholder="예) 2F87E4"
           style={{
-            minHeight: 60, fontSize: 28, fontWeight: 800, letterSpacing: 8,
+            width: '100%', minWidth: 0, minHeight: 60, fontSize: 28, fontWeight: 800, letterSpacing: 8,
             textAlign: 'center', border: '2px solid var(--border)', borderRadius: 12,
             background: 'var(--surface)', color: 'var(--text)', textTransform: 'uppercase',
           }}
