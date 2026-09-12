@@ -245,6 +245,7 @@ test('보호자는 잘못된 코드 재시도 후 연결·현황 조회·해제�
 
 test('사용자는 보호자 요청을 확인하고 승인한다', async ({ page }) => {
   const state = await fixture(page); state.requestStatus = 'pending'; await login(page);
+  await page.getByRole('button', { name: '알겠어요' }).click();
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await expect(page.getByText('시험 보호자 · 등록 관계: 어머니')).toBeVisible();
   await page.getByRole('button', { name: '아는 가족이에요 · 연결 승인' }).click();
