@@ -2,7 +2,6 @@
   "appId": "com.denturecare.app",
   "appName": "틀니케어",
   "webDir": "dist",
-  "bundledWebRuntime": false,
   "backgroundColor": "#8FCAE5",
   "plugins": {
     "SplashScreen": {
@@ -16,6 +15,6 @@
     }
   },
   "ios": {
-    "contentInset": "always"
+    "contentInset": "never"
   }
 }

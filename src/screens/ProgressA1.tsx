@@ -1,83 +1,96 @@
-import { useEffect, useState } from 'react';
-import { db } from '../lib/db';
+import { useCallback, useEffect, useState } from 'react';
+import { db, friendlyError } from '../lib/db';
+import { localDateString } from '../lib/dates';
+import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { useAuth } from '../state/AuthContext';
-import { computeStreak, weeklyStats } from '../lib/streak';
+import { computeStreak, weeklyStats, PROGRESS_WINDOW_DAYS } from '../lib/streak';
 import type { Routine, RoutineLog } from '../lib/types';
-import { Screen, Title, Card, Splash } from '../components/ui';
+import { Screen, Title, Card, Splash, ErrorBox, BigButton } from '../components/ui';
 
-// A1 진행률 화면 (docs/설계/01 A1-3): 연속 일수, 습관화 단계, 주간 그래프
+// 최근 90일 관리 기록과 최근 7일 완료 현황
 export default function ProgressA1() {
   const { session } = useAuth();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    try {
       if (!session) return;
       const since = new Date();
-      since.setDate(since.getDate() - 90);
-      const sinceStr = since.toISOString().slice(0, 10);
+      since.setDate(since.getDate() - (PROGRESS_WINDOW_DAYS - 1));
+      const sinceStr = localDateString(since);
       const [r, l] = await Promise.all([
-        db().from('routines').select('*').eq('user_id', session.user.id),
-        db().from('routine_logs').select('*').eq('user_id', session.user.id).gte('log_date', sinceStr),
+        db().from('routines').select('*').eq('user_id', session.user.id).eq('enabled', true),
+        db().from('routine_logs').select('*').eq('user_id', session.user.id).gte('log_date', sinceStr).lte('log_date', localDateString()),
       ]);
+      if (r.error || l.error) throw r.error || l.error;
+      setError('');
       setRoutines((r.data as Routine[]) ?? []);
-      setLogs((l.data as RoutineLog[]) ?? []);
-      setLoading(false);
-    })();
+      const slots = new Set((r.data as Routine[] ?? []).map((routine) => routine.slot));
+      setLogs(((l.data as RoutineLog[]) ?? []).filter((log) => slots.has(log.slot)));
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setLoading(false); }
   }, [session]);
+  useEffect(() => { void load(); }, [load]);
+  useRefreshOnResume(load);
 
   if (loading) return <Splash text="진행률을 불러오는 중..." />;
+  if (error) return <Screen><Title>나의 진행률</Title><ErrorBox message={error} /><BigButton onClick={load}>다시 불러오기</BigButton></Screen>;
 
-  const streak = computeStreak(logs, routines.length);
-  const week = weeklyStats(logs);
-  // 습관화 단계: 30일/90일 기준 (프로토타입 계승)
-  const phase = streak < 30 ? 1 : streak < 90 ? 2 : 3;
-  const phaseLabel = ['습관 만들기 (1~29일)', '습관 다지기 (30~89일)', '몸에 뱄어요! (90일+)'][phase - 1];
-  const phaseEmoji = ['🌱', '🌿', '🌳'][phase - 1];
+  const enabledSlots = [...new Set(routines.map((routine) => routine.slot))];
+  const totalSlots = enabledSlots.length;
+  const streak = computeStreak(logs, enabledSlots);
+  const week = weeklyStats(logs, enabledSlots);
+  const phaseLabel = streak === 0 ? '오늘부터 기록해보세요'
+    : streak < 30 ? '기록 시작 (1~29일)'
+    : streak < 90 ? '꾸준한 기록 (30~89일)' : '90일 기록 달성';
+  const phaseEmoji = streak < 30 ? '🌱' : streak < 90 ? '🌿' : '🌳';
 
   return (
     <Screen>
-      <Title sub="꾸준함이 잇몸 건강을 지켜요">나의 진행률</Title>
+      <Title sub="매일 남긴 관리 기록을 확인해요">나의 진행률</Title>
 
       <Card style={{ textAlign: 'center', background: 'var(--primary-light)' }}>
-        <p style={{ fontSize: 48 }}>{phaseEmoji}</p>
-        <p style={{ fontSize: 34, fontWeight: 800, color: 'var(--primary)' }}>{streak}일 연속</p>
+        <p aria-hidden="true" style={{ fontSize: 48 }}>{phaseEmoji}</p>
+        <p style={{ fontSize: 'calc(var(--font-body) * 1.8)', fontWeight: 800, color: 'var(--primary)' }}>{streak}일 연속</p>
         <p style={{ color: 'var(--text-sub)', marginTop: 4 }}>
-          {phase}단계 · {phaseLabel}
+          {phaseLabel}
         </p>
+        <p style={{ color: 'var(--text-sub)', marginTop: 12 }}>최근 90일 안의 기록만 집계해요. 오늘 진행 중이면 어제까지의 연속 기록을 표시해요.</p>
       </Card>
 
       <Card>
-        <p style={{ fontWeight: 800, marginBottom: 14 }}>최근 7일</p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 120 }}>
-          {week.map((d, i) => {
-            const ratio = routines.length ? d.done / routines.length : 0;
-            const isToday = i === 6;
+        <h2 style={{ fontSize: 'inherit', fontWeight: 800, marginBottom: 14 }}>최근 7일</h2>
+        {totalSlots === 0 && <p>현재 집계할 관리 항목이 없어요.</p>}
+        <ul role="list" aria-label="최근 7일 관리 완료 기록" style={{ listStyle: 'none', display: 'grid', gap: 14 }}>
+          {week.map((day) => {
+            const ratio = totalSlots ? day.done / totalSlots : 0;
             return (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{
-                  width: '100%', borderRadius: 8,
-                  height: Math.max(8, ratio * 90),
-                  background: ratio >= 1 ? 'var(--success)' : ratio > 0 ? 'var(--accent)' : 'var(--border)',
-                }} />
-                <span style={{ fontSize: 14, fontWeight: isToday ? 800 : 400, color: isToday ? 'var(--primary)' : 'var(--text-sub)' }}>
-                  {d.label}
-                </span>
-              </div>
+              <li key={day.date}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '2px 8px' }}>
+                  <span style={{ fontWeight: day.isToday ? 800 : 400 }}>
+                    {day.label}{day.isToday ? ' · 오늘' : ''}
+                  </span>
+                  <span>{day.done}/{totalSlots}개 완료</span>
+                </div>
+                <div aria-hidden="true" style={{ marginTop: 4, height: 10, borderRadius: 8, background: 'var(--border)', overflow: 'hidden' }}>
+                  <div style={{ width: `${ratio * 100}%`, height: '100%', background: ratio >= 1 ? 'var(--success)' : 'var(--accent)' }} />
+                </div>
+              </li>
             );
           })}
-        </div>
-        <p style={{ color: 'var(--text-sub)', fontSize: 15, marginTop: 10 }}>
-          초록 = 5개 모두 완료 · 주황 = 일부 완료
+        </ul>
+        <p style={{ color: 'var(--text-sub)', marginTop: 14 }}>
+          현재 켜진 관리 항목을 기준으로 계산해요. 항목 설정을 바꾸면 이전 날짜의 완료 수와 연속 일수도 달라질 수 있어요.
         </p>
       </Card>
 
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 6 }}>💡 알고 계셨나요?</p>
         <p style={{ color: 'var(--text-sub)' }}>
-          같은 행동을 66일 정도 반복하면 몸이 기억해요. 지금처럼만 하시면 틀니 관리가 양치질처럼 자연스러워져요.
+          기록을 빠뜨린 날이 있어도 오늘부터 다시 시작해보세요. 기록 단계는 앱의 격려 표시이며 건강 상태를 평가하지 않아요.
         </p>
       </Card>
     </Screen>

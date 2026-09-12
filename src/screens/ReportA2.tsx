@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
-import { db } from '../lib/db';
+import { useCallback, useEffect, useState } from 'react';
+import { db, friendlyError } from '../lib/db';
+import { localDateString, calendarDaysUntil } from '../lib/dates';
+import { nextCheckup, type CheckupSchedule } from '../lib/checkups';
+import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { useAuth } from '../state/AuthContext';
 import type { Routine, RoutineLog } from '../lib/types';
-import { Screen, Title, Card, Splash } from '../components/ui';
+import { Screen, Title, Card, Splash, ErrorBox, BigButton } from '../components/ui';
 
-interface CheckupRow { visited_on: string; next_recall_on: string; }
+interface CheckupRow { visited_on: string; next_recall_on: string | null; }
 
 // A2 주간 리포트 (docs/설계/01 A2-2, 프로토타입 renderA2Report 계승)
 // 지난 7일(오늘 제외) 기준: 완료율, 요일별 그래프, 놓친 시간대 패턴, 다음 검진
@@ -14,30 +17,42 @@ export default function ReportA2() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [checkup, setCheckup] = useState<CheckupRow | null>(null);
+  const [schedule, setSchedule] = useState<CheckupSchedule | null>(null);
+  const [scheduleError, setScheduleError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    try {
       if (!elderId) return;
       const since = new Date();
       since.setDate(since.getDate() - 14);
-      const sinceStr = since.toISOString().slice(0, 10);
-      const [p, r, l, c] = await Promise.all([
+      const sinceStr = localDateString(since);
+      const [p, r, l, c, planned] = await Promise.all([
         db().from('profiles').select('name').eq('id', elderId).single(),
-        db().from('routines').select('*').eq('user_id', elderId).order('alarm_time'),
+        db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
         db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr),
         db().from('checkups').select('visited_on,next_recall_on').eq('user_id', elderId)
           .order('visited_on', { ascending: false }).limit(1).maybeSingle(),
+        db().from('checkup_schedules').select('user_id,scheduled_on').eq('user_id', elderId).maybeSingle(),
       ]);
+      if (p.error || r.error || l.error || c.error) throw p.error || r.error || l.error || c.error;
+      setError('');
+      setScheduleError(planned.error ? '치과에서 안내받은 일정을 불러오지 못했어요.' : '');
+      setSchedule(planned.error ? null : planned.data as CheckupSchedule | null);
       setElderName((p.data as { name: string } | null)?.name ?? '');
       setRoutines((r.data as Routine[]) ?? []);
-      setLogs((l.data as RoutineLog[]) ?? []);
+      const slots = new Set((r.data as Routine[] ?? []).map((routine) => routine.slot));
+      setLogs(((l.data as RoutineLog[]) ?? []).filter((log) => slots.has(log.slot)));
       setCheckup((c.data as CheckupRow) ?? null);
-      setLoading(false);
-    })();
+    } catch (err) { setError(friendlyError(err)); }
+    finally { setLoading(false); }
   }, [elderId]);
+  useEffect(() => { void load(); }, [load]);
+  useRefreshOnResume(load);
 
   if (loading) return <Splash text="리포트를 만드는 중..." />;
+  if (error) return <Screen><Title>주간 리포트</Title><ErrorBox message={error} /><BigButton onClick={load}>다시 불러오기</BigButton></Screen>;
 
   const total = routines.length;
   const dateStr = (offset: number) => {
@@ -75,9 +90,8 @@ export default function ReportA2() {
   }));
   const worst = [...slotMisses].sort((a, b) => b.missed - a.missed)[0];
 
-  const dDay = checkup
-    ? Math.ceil((new Date(checkup.next_recall_on + 'T00:00:00').getTime() - Date.now()) / 86400000)
-    : null;
+  const next = nextCheckup(schedule, checkup?.next_recall_on);
+  const dDay = next?.confirmed ? calendarDaysUntil(next.date) : null;
 
   return (
     <Screen>
@@ -145,15 +159,20 @@ export default function ReportA2() {
       </Card>
 
       {/* 다음 검진 */}
-      <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <p style={{ fontWeight: 800 }}>🦷 다음 치과 검진</p>
+      <Card>
+        <p style={{ fontWeight: 800 }}>🦷 {next?.label ?? '다음 치과 검진'}</p>
+        <ErrorBox message={scheduleError} />
+        {scheduleError && <BigButton variant="ghost" onClick={load}>일정 다시 불러오기</BigButton>}
+        {next && <p>{next.date}</p>}
         {dDay !== null ? (
           <p style={{ fontWeight: 800, color: dDay <= 7 ? 'var(--danger)' : 'var(--primary)' }}>
             {dDay < 0 ? `${-dDay}일 지남!` : dDay === 0 ? '오늘!' : `D-${dDay}`}
           </p>
         ) : (
-          <p style={{ color: 'var(--text-sub)' }}>기록 없음</p>
+          <p style={{ color: 'var(--text-sub)' }}>{next ? '안내받은 검진일 미입력' : '기록 없음'}</p>
         )}
+        {next && !next.confirmed && <p>검증되지 않은 기존 앱 계산값이며 치과 예약일이 아니에요. 담당 치과에 실제 일정을 확인해 주세요.</p>}
+        {next?.confirmed && <p>사용자가 치과에서 안내받아 입력한 일정이에요.</p>}
       </Card>
     </Screen>
   );
