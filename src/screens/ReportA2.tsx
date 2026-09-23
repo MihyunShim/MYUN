@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { localDateString, calendarDaysUntil } from '../lib/dates';
 import { nextCheckup, type CheckupSchedule } from '../lib/checkups';
+import { reportWeek } from '../lib/report';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 import { useAuth } from '../state/AuthContext';
 import type { Routine, RoutineLog } from '../lib/types';
@@ -31,7 +32,7 @@ export default function ReportA2() {
       const [p, r, l, c, planned] = await Promise.all([
         db().from('profiles').select('name').eq('id', elderId).single(),
         db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
-        db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr),
+        db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr).lte('log_date', localDateString()),
         db().from('checkups').select('visited_on,next_recall_on').eq('user_id', elderId)
           .order('visited_on', { ascending: false }).limit(1).maybeSingle(),
         db().from('checkup_schedules').select('user_id,scheduled_on').eq('user_id', elderId).maybeSingle(),
@@ -54,41 +55,11 @@ export default function ReportA2() {
   if (loading) return <Splash text="리포트를 만드는 중..." />;
   if (error) return <Screen><Title>주간 리포트</Title><ErrorBox message={error} /><BigButton onClick={load}>다시 불러오기</BigButton></Screen>;
 
-  const total = routines.length;
-  const dateStr = (offset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - offset);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-  const dayLabel = (offset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - offset);
-    return '일월화수목금토'[d.getDay()];
-  };
-
-  // 이번 주(어제까지 7일) vs 지난주(그 전 7일) — 오늘은 아직 진행 중이라 제외
-  const inWindow = (log: RoutineLog, from: number, to: number) => {
-    for (let i = from; i <= to; i++) if (log.log_date === dateStr(i)) return true;
-    return false;
-  };
-  const thisWeek = logs.filter((l) => inWindow(l, 1, 7));
-  const lastWeek = logs.filter((l) => inWindow(l, 8, 14));
-  const rate = total ? Math.round((thisWeek.length / (total * 7)) * 100) : 0;
-  const prevRate = total ? Math.round((lastWeek.length / (total * 7)) * 100) : 0;
-  const diff = rate - prevRate;
-
-  // 요일별 (어제부터 7일 전까지 → 오래된 날이 왼쪽)
-  const days = [7, 6, 5, 4, 3, 2, 1].map((off) => ({
-    label: dayLabel(off),
-    done: thisWeek.filter((l) => l.log_date === dateStr(off)).length,
-  }));
-
-  // 시간대별 놓친 횟수 (이번 주 7일 기준)
-  const slotMisses = routines.map((r) => ({
-    routine: r,
-    missed: 7 - thisWeek.filter((l) => l.slot === r.slot).length,
-  }));
-  const worst = [...slotMisses].sort((a, b) => b.missed - a.missed)[0];
+  const slots = routines.map(r => r.slot);
+  const week = reportWeek(logs, slots);
+  const previous = reportWeek(logs, slots, new Date(), 8);
+  const { total, rate, days } = week;
+  const diff = rate !== null && previous.rate !== null ? rate - previous.rate : null;
 
   const next = nextCheckup(schedule, checkup?.next_recall_on);
   const dDay = next?.confirmed ? calendarDaysUntil(next.date) : null;
@@ -97,65 +68,37 @@ export default function ReportA2() {
     <Screen>
       <Title sub={elderName ? `${elderName}님의 지난 7일` : '지난 7일'}>주간 리포트</Title>
 
-      {/* 이번 주 완료율 */}
       <Card style={{ background: 'var(--primary)', color: '#fff', textAlign: 'center' }}>
-        <p style={{ opacity: 0.85 }}>이번 주 완료율</p>
-        <p style={{ fontSize: 48, fontWeight: 800, lineHeight: 1.2 }}>{rate}%</p>
-        <p style={{ opacity: 0.85 }}>
-          {lastWeek.length > 0
-            ? diff === 0 ? '지난주와 같아요' : `지난주 ${prevRate}% 대비 ${diff > 0 ? '+' : ''}${diff}%p`
-            : '첫 주 기록이에요'}
-        </p>
+        <h2 style={{ fontSize: '1em' }}>지난 7일 완료 기록률</h2>
+        <p style={{ fontSize: 40, fontWeight: 800 }}>{rate === null ? total ? '기록 없음' : '관리 항목 없음' : `${rate}%`}</p>
+        <p>{diff === null ? '비교할 기록이 충분하지 않아요' : diff === 0 ? '이전 7일과 같아요' : `이전 7일 ${previous.rate}% 대비 ${diff > 0 ? '+' : ''}${diff}%p`}</p>
       </Card>
-
-      {/* 요일별 수행률 */}
+      <p>오늘을 제외한 7일 동안 앱에 남긴 기록이에요. 현재 켜진 관리 항목 × 7일을 기준으로 계산하므로, 처음 사용하거나 항목을 바꾸면 실제 관리 실천과 다를 수 있어요. 기록이 없다고 관리를 하지 않은 것은 아니에요.</p>
       <Card>
-        <p style={{ fontWeight: 800, marginBottom: 14 }}>요일별 수행</p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 110 }}>
-          {days.map((d, i) => {
-            const ratio = total ? d.done / total : 0;
-            return (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{
-                  width: '100%', borderRadius: 6,
-                  height: Math.max(6, ratio * 70),
-                  background: ratio >= 1 ? 'var(--success)' : ratio >= 0.6 ? 'var(--accent)' : ratio > 0 ? 'var(--warning)' : 'var(--border)',
-                }} />
-                <span style={{ fontSize: 14, color: 'var(--text-sub)' }}>{d.label}</span>
-                <span style={{ fontSize: 13, color: 'var(--text-sub)' }}>{d.done}/{total}</span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* 놓친 시간대 패턴 */}
-      <Card>
-        <p style={{ fontWeight: 800, marginBottom: 10 }}>자주 놓치는 시간</p>
-        {worst && worst.missed > 0 ? (
-          <p style={{ color: 'var(--text-sub)', marginBottom: 12 }}>
-            이번 주 가장 자주 놓친 시간은{' '}
-            <strong style={{ color: 'var(--text)' }}>
-              {worst.routine.label}({worst.routine.alarm_time.slice(0, 5)})
-            </strong>
-            이에요. 그 시간에 전화 한 통이 큰 힘이 됩니다.
-          </p>
-        ) : (
-          <p style={{ color: 'var(--success)', fontWeight: 700, marginBottom: 12 }}>
-            모든 시간을 잘 지키고 있어요! 👏
-          </p>
-        )}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {slotMisses.map(({ routine, missed }) => (
-            <div key={routine.slot} style={{
-              flex: 1, padding: '8px 4px', borderRadius: 8, textAlign: 'center',
-              background: missed > 2 ? '#FEE2E2' : missed > 0 ? '#FEF3C7' : '#DCFCE7',
-            }}>
-              <p style={{ fontSize: 14, color: 'var(--text-sub)' }}>{routine.alarm_time.slice(0, 5)}</p>
-              <p style={{ fontSize: 15, fontWeight: 700 }}>{missed > 0 ? `${missed}회 놓침` : '완벽'}</p>
+        <h2 style={{ fontSize: '1.1em', marginBottom: 12 }}>날짜별 완료 기록</h2>
+        <ul aria-label="지난 7일 가족 관리 기록" style={{ listStyle: 'none', display: 'grid', gap: 14 }}>
+          {days.map(day => <li key={day.date}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }}>
+              <span>{day.label}</span><span>{!total ? '관리 항목 없음' : day.done ? `${day.done}/${total}개 완료 기록` : '기록 없음'}</span>
             </div>
-          ))}
-        </div>
+            <div aria-hidden="true" style={{ height: 10, marginTop: 4, background: 'var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${total ? day.done / total * 100 : 0}%`, background: 'var(--primary)' }} />
+            </div>
+          </li>)}
+        </ul>
+      </Card>
+      <Card>
+        <h2 style={{ fontSize: '1.1em', marginBottom: 10 }}>시간대별 기록 확인</h2>
+        <p>기록이 비어 있는 시간은 가족에게 직접 확인해주세요.</p>
+        {!total ? <p>현재 관리 항목이 없어요.</p> : !week.done ? <p>이 기간에는 완료 기록이 없어요.</p> : <ul style={{ listStyle: 'none' }}>
+          {week.missing.map(({ slot, count }) => {
+            const routine = routines.find(r => r.slot === slot)!;
+            return <li key={slot} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+              <strong>{routine.label} · {routine.alarm_time.slice(0, 5)}</strong>
+              <p>{count ? `7일 중 ${count}일 기록 없음` : '7일 모두 완료 기록 있음'}</p>
+            </li>;
+          })}
+        </ul>}
       </Card>
 
       {/* 다음 검진 */}
@@ -163,8 +106,8 @@ export default function ReportA2() {
         <p style={{ fontWeight: 800 }}>🦷 {next?.label ?? '다음 치과 검진'}</p>
         <ErrorBox message={scheduleError} />
         {scheduleError && <BigButton variant="ghost" onClick={load}>일정 다시 불러오기</BigButton>}
-        {next && <p>{next.date}</p>}
-        {dDay !== null ? (
+        {!scheduleError && next && <p>{next.date}</p>}
+        {scheduleError ? null : dDay !== null ? (
           <p style={{ fontWeight: 800, color: dDay <= 7 ? 'var(--danger)' : 'var(--primary)' }}>
             {dDay < 0 ? `${-dDay}일 지남!` : dDay === 0 ? '오늘!' : `D-${dDay}`}
           </p>

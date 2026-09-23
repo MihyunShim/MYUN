@@ -10,7 +10,7 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
   const access = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated' })}.fixture`;
   const session = { access_token: access, token_type: 'bearer', expires_in: 3600, refresh_token: 'fixture', user };
   const profile = { id, name: '시험 사용자', role, birth_year: 1950, invite_code: 'TEST01', font_size_mode: 'large' };
-  const state = { requestStatus: '', anonymousStarts: 0, failSave: false, linked: false, failRead: false, failLink: false, linkWrites: 0, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, denture: { made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null as string | null }, logs: [] as Record<string, unknown>[] };
+  const state = { visits: [] as { id: string; visited_on: string }[], requestStatus: '', anonymousStarts: 0, failSave: false, linked: false, failRead: false, failLink: false, linkWrites: 0, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, denture: { made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null as string | null }, logs: [] as Record<string, unknown>[] };
   const routines = DEFAULT_ROUTINES.map((r, i) => ({ id: `r${i}`, user_id: elderId, slot: r.slot, label: r.label, alarm_time: r.time, enabled: true }));
   await page.routeWebSocket('wss://denturecare-test.supabase.co/**', (socket) => socket.close());
   await page.route('https://denturecare-test.supabase.co/**', async (route) => {
@@ -24,7 +24,7 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
     if (path.endsWith('/user')) return respond(user);
     if (path.endsWith('/logout')) return route.fulfill({ status: 204, headers });
     if (path.endsWith('/rpc/list_my_care_links')) return respond(state.linked ? [{ link_id: 'link', other_name: '시험 가족', relation: '자녀' }] : []);
-    if (path.endsWith('/rpc/list_guardian_requests')) return respond(state.requestStatus ? [{ id: 'request', other_name: role === 'A1' ? '시험 보호자' : '틀니 사용자', relation: '어머니', status: state.requestStatus }] : []);
+    if (path.endsWith('/rpc/list_guardian_requests')) return respond(state.requestStatus ? [{ id: 'request', other_name: role === 'A1' ? '시험 보호자' : '틀니 사용자', relation: '어머니', status: state.requestStatus, expires_at: new Date(Date.now() + 86400000).toISOString() }] : []);
     if (path.endsWith('/rpc/resolve_guardian_request')) { state.requestStatus = request.postDataJSON().accept ? 'approved' : 'rejected'; state.linked = state.requestStatus === 'approved'; return respond(null); }
     if (path.endsWith('/rpc/cancel_guardian_request')) { state.requestStatus = 'cancelled'; return respond(null); }
     if (path.endsWith('/rpc/request_guardian_connection')) {
@@ -69,7 +69,18 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
       if (method === 'DELETE') { state.schedule = null; return respond([{ user_id: elderId }]); }
       return respond(state.schedule ? [state.schedule] : []);
     }
-    if (path.endsWith('/checkups')) return respond([]);
+    if (path.endsWith('/rpc/save_checkup_visit')) {
+      if (state.failSave) return respond({ message: 'network unavailable' }, 503);
+      const data = request.postDataJSON();
+      if (data.visit_id) state.visits.find(v => v.id === data.visit_id)!.visited_on = data.visit_date;
+      else if (!state.visits.some(v => v.visited_on === data.visit_date)) state.visits.push({ id: 'visit', visited_on: data.visit_date });
+      return respond('visit');
+    }
+    if (path.endsWith('/rpc/delete_checkup_visit')) {
+      if (state.failSave) return respond({ message: 'network unavailable' }, 503);
+      state.visits = state.visits.filter(v => v.id !== request.postDataJSON().visit_id); return respond(null);
+    }
+    if (path.endsWith('/checkups')) return respond(state.visits);
     if (path.endsWith('/care_links')) {
       if (method === 'HEAD') return route.fulfill({ status: 200, headers: { ...headers, 'content-range': state.linked ? '0-0/1' : '*/0' } });
       if (method === 'PATCH') { state.linked = false; state.requestStatus = 'cancelled'; return respond({ id: 'link' }); }
@@ -133,8 +144,12 @@ test('설정은 저장 실패와 미래 제작일을 처리하고 탈퇴에 명�
   await expect(page.locator('html')).toHaveCSS('--font-body', '22px');
   state.failSave = true;
   await page.getByLabel('아침 식후 알림 시간').fill('09:00');
+  await page.getByRole('button', { name: '아침 식후 시간 저장', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('연결');
-  await expect(page.getByLabel('아침 식후 알림 시간')).toHaveValue('08:00');
+  await expect(page.getByLabel('아침 식후 알림 시간')).toHaveValue('09:00');
+  state.failSave = false;
+  await page.getByRole('button', { name: '아침 식후 시간 저장', exact: true }).click();
+  await expect(page.getByText('아침 식후 시간을 저장했어요.')).toBeVisible();
   await expect(page.getByText('· 저장됨 ✓', { exact: true })).toHaveCount(0);
   await page.getByLabel('만든 연도').fill('2999');
   await expect(page.getByRole('button', { name: '틀니 정보 저장' })).toBeDisabled();
@@ -231,6 +246,9 @@ test('보호자는 잘못된 코드 재시도 후 연결·현황 조회·해제�
   expect(state.linked).toBe(false);
   expect(state.anonymousStarts).toBe(1);
   await expect(page.getByText(/사용자 승인 대기 중/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '승인을 기다리고 있어요' })).toBeVisible();
+  await expect(page.getByLabel('초대코드 (6자리)')).toHaveCount(0);
   state.linked = true; state.requestStatus = 'approved'; // 별도 사용자 승인에 해당하는 서버 상태
   await page.getByRole('button', { name: '승인 여부 확인 · 가족 현황 보기' }).click();
   await expect(page.getByText('시험 사용자님의 오늘')).toBeVisible();
@@ -250,4 +268,66 @@ test('사용자는 보호자 요청을 확인하고 승인한다', async ({ page
   await expect(page.getByText('시험 보호자 · 등록 관계: 어머니')).toBeVisible();
   await page.getByRole('button', { name: '아는 가족이에요 · 연결 승인' }).click();
   await expect.poll(() => state.linked).toBe(true);
+});
+
+test('검진 방문 기록은 저장 실패 후 날짜를 유지하고 수정·삭제한다', async ({ page }, testInfo) => {
+  const state = await fixture(page); await login(page);
+  await page.getByRole('button', { name: '알겠어요' }).click();
+  await page.getByRole('button', { name: '검진', exact: true }).click();
+  await page.getByRole('button', { name: '오늘 검진 받았어요 ✓', exact: true }).click();
+  await expect(page.getByRole('button', { name: '오늘 검진을 기록했어요 ✓', exact: true })).toBeDisabled();
+  expect(state.visits).toHaveLength(1);
+  await page.getByRole('button', { name: /일 수정$/ }).click();
+  await page.getByLabel('실제 검진 받은 날짜').fill('2026-01-10');
+  state.failSave = true;
+  await page.getByRole('button', { name: '검진 기록 수정 저장' }).click();
+  await expect(page.getByRole('alert')).toContainText('연결');
+  await expect(page.getByLabel('실제 검진 받은 날짜')).toHaveValue('2026-01-10');
+  state.failSave = false;
+  await page.getByRole('button', { name: '검진 기록 수정 저장' }).click();
+  await expect(page.getByText('검진 날짜를 수정했어요.', { exact: true })).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('visit-history.png'), fullPage: true });
+  await page.getByRole('button', { name: '2026년 1월 10일 삭제', exact: true }).click();
+  expect(state.visits).toHaveLength(1);
+  await page.getByRole('button', { name: '이 검진 기록 삭제', exact: true }).click();
+  await expect(page.getByText('아직 검진 기록이 없어요.')).toBeVisible();
+  expect(state.visits).toHaveLength(0);
+});
+
+test('보호자 빈 리포트는 미실천이나 첫 주로 단정하지 않는다', async ({ page }, testInfo) => {
+  const state = await fixture(page, 'A2'); state.linked = true; await login(page);
+  await page.getByRole('button', { name: '리포트', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '지난 7일 완료 기록률' })).toBeVisible();
+  await expect(page.getByText('비교할 기록이 충분하지 않아요')).toBeVisible();
+  await expect(page.getByRole('list', { name: '지난 7일 가족 관리 기록' }).getByRole('listitem')).toHaveCount(7);
+  await expect(page.getByText(/첫 주 기록|회 놓침|모든 시간을 잘 지키고/)).toHaveCount(0);
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('guardian-report.png'), fullPage: true });
+});
+
+test('취소·만료된 요청은 다시 입력할 수 있고 새 요청 후 입력창을 감춘다', async ({ page }) => {
+  const state = await fixture(page, 'A2'); state.requestStatus = 'pending'; await login(page);
+  await expect(page.getByRole('heading', { name: '승인을 기다리고 있어요' })).toBeVisible();
+  await page.getByRole('button', { name: '연결 요청 취소', exact: true }).click();
+  await expect(page.getByLabel('초대코드 (6자리)')).toBeVisible();
+  state.requestStatus = 'expired';
+  await page.getByRole('button', { name: '승인 여부 확인 · 가족 현황 보기' }).click();
+  await expect(page.getByText(/24시간이 지나 요청이 만료됐어요/)).toBeVisible();
+  await page.getByLabel('초대코드 (6자리)').fill('TEST01');
+  await page.getByRole('button', { name: '연결 요청하기', exact: true }).click();
+  await expect(page.getByText(/사용자 승인 대기 중/)).toBeVisible();
+  await expect(page.getByLabel('초대코드 (6자리)')).toHaveCount(0);
+});
+
+test('첫 화면은 본인 가입과 보호자 경로를 구분하고 도움말을 제공한다', async ({ page }, testInfo) => {
+  await fixture(page); await page.goto('/');
+  await page.getByText('보호자는 회원가입을 해야 하나요?', { exact: true }).click();
+  await expect(page.getByText(/카카오톡은 코드를 전달하는 방법/)).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('welcome-help.png'), fullPage: true });
+  await page.getByRole('button', { name: '틀니 사용자로 회원가입' }).click();
+  await expect(page.getByRole('heading', { name: '틀니 사용자 회원가입' })).toBeVisible();
+  await page.evaluate(() => { Object.defineProperty(navigator, 'onLine', { configurable: true, value: false }); window.dispatchEvent(new Event('offline')); });
+  await expect(page.getByRole('status')).toContainText('인터넷이 연결되지 않았어요');
 });

@@ -15,3 +15,10 @@ export function nextCheckup(schedule: CheckupSchedule | null, estimatedDate?: st
   if (estimatedDate) return { date: estimatedDate, confirmed: false, label: '이전 앱에서 계산한 참고일' };
   return null;
 }
+
+export function isValidVisitDate(value: string, now = new Date()): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T12:00:00');
+  return !Number.isNaN(date.getTime()) && localDateString(date) === value
+    && value >= '1900-01-01' && value <= localDateString(now);
+}

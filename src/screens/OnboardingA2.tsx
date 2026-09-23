@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { Screen, Title, Card, BigButton, ErrorBox } from '../components/ui';
@@ -9,29 +9,32 @@ const RELATIONS = ['어머니', '아버지', '배우자', '그 외 가족'];
 
 // A2 연결 온보딩: 초대코드 입력 → 관계 선택 → 연결 (docs/설계/01 A2-0)
 export default function OnboardingA2() {
-  const { refresh, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [code, setCode] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const [relation, setRelation] = useState(RELATIONS[0]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [linked, setLinked] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const onPendingChange = useCallback((value: boolean) => { setPending(value); setChecked(true); if (!value) setLinked(false); }, []);
   const inFlight = useRef(false);
   const validCode = /^[A-Z0-9]{6}$/.test(code);
 
   const link = async () => {
-    if (inFlight.current || linked || !validCode) return;
+    if (inFlight.current || pending || !checked || !validCode) return;
     inFlight.current = true;
     setError('');
     setBusy(true);
     try {
-      // DB의 link_with_invite_code 함수가 코드 확인 + 연결 생성을 한 번에 처리
+      // Request creation does not grant access. The user must approve separately.
       const { error: err } = await db().rpc('request_guardian_connection', {
         code: code.trim(),
         rel: relation,
       });
       if (err) { setError(friendlyError(err)); return; }
-      setLinked(true); // 연결 완료 확인 후 가족 현황으로 이동
+      setPending(true); setLinked(true);
     } catch (err) { setError(friendlyError(err)); }
     finally {
       inFlight.current = false;
@@ -39,17 +42,17 @@ export default function OnboardingA2() {
     }
   };
 
-  if (linked) return <Screen><Title>연결 요청을 보냈어요</Title><p>사용자 앱의 설정 → 보호자 연결 요청에서 승인하면 가족 현황을 볼 수 있어요.</p><GuardianRequests /><BigButton variant="ghost" onClick={() => setLinked(false)}>코드 다시 입력하기</BigButton></Screen>;
-
   if (accountOpen) return <AccountScreen onBack={() => setAccountOpen(false)} />;
   return (
     <Screen>
       <Title sub="틀니 사용자 앱의 설정 → 가족 초대코드에서 6자리 코드를 확인해주세요">
-        💗 초대코드로 가족 연결
+        {linked ? '연결 요청을 보냈어요' : pending ? '승인을 기다리고 있어요' : '💗 초대코드로 가족 연결'}
       </Title>
 
       <p>보호자 준비가 완료됐어요. 아래에 초대코드를 입력하고 ‘연결 요청하기’를 눌러주세요. 사용자가 승인하면 오늘의 관리 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없으며, 연결은 양쪽 설정에서 해제할 수 있어요.</p>
-      <form onSubmit={(event) => { event.preventDefault(); void link(); }} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0, gap: 16 }}>
+      <GuardianRequests reloadKey={linked ? 1 : 0} onPendingChange={onPendingChange} />
+      {pending && <p>사용자 앱의 설정 → 보호자 연결 요청에서 승인하면 가족 현황을 볼 수 있어요. 다른 코드로 요청하려면 먼저 현재 요청을 취소해주세요.</p>}
+      {checked && !pending && <form onSubmit={(event) => { event.preventDefault(); void link(); }} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0, gap: 16 }}>
       <label style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 8 }}>
         <span style={{ fontWeight: 700 }}>초대코드 (6자리)</span>
         <input
@@ -87,8 +90,7 @@ export default function OnboardingA2() {
 
       <ErrorBox message={error} />
       <button type="submit" disabled={busy || !validCode} style={{ minHeight: 56, width: '100%', padding: 12, background: 'var(--primary)', color: '#fff', fontWeight: 700, opacity: busy || !validCode ? 0.5 : 1 }}>{busy ? '요청 중...' : '연결 요청하기'}</button>
-      </form>
-      <GuardianRequests />
+      </form>}
       <p>가입 없이 시작했다면 로그아웃 후에는 새 초대와 승인이 필요해요.</p>
       <BigButton variant="ghost" disabled={busy} onClick={signOut}>로그아웃</BigButton>
       <BigButton variant="ghost" disabled={busy} onClick={() => setAccountOpen(true)}>계정·앱 안내</BigButton>

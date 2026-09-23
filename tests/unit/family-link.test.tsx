@@ -6,7 +6,13 @@ import { FamilyInviteCard } from '../../src/components/FamilyInviteCard';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), refresh: vi.fn(), copy: vi.fn() }));
 vi.mock('../../src/lib/db', () => ({ db: () => ({ rpc: mocks.rpc }), friendlyError: () => '최신 코드를 확인해주세요' }));
 vi.mock('../../src/state/AuthContext', () => ({ useAuth: () => ({ profile: { invite_code: 'ABC123' }, refresh: mocks.refresh, signOut: vi.fn() }) }));
-vi.mock('../../src/components/GuardianRequests', () => ({ GuardianRequests: () => <p>승인 대기 목록</p> }));
+vi.mock('../../src/components/GuardianRequests', async () => {
+  const { useEffect } = await import('react');
+  return { GuardianRequests: ({ onPendingChange, reloadKey }: { onPendingChange: (pending: boolean) => void; reloadKey: number }) => {
+    useEffect(() => { onPendingChange(reloadKey > 0); }, [onPendingChange, reloadKey]);
+    return <p>승인 대기 목록</p>;
+  } };
+});
 vi.mock('../../src/screens/AccountScreen', () => ({ default: () => null }));
 beforeEach(() => { vi.resetAllMocks(); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.copy } }); });
 afterEach(cleanup);

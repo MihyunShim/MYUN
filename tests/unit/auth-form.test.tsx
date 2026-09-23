@@ -20,12 +20,10 @@ it('로그인 양식에 자동완성 정보를 제공하고 중복 제출을 차
   await waitFor(() => expect(mocks.login).toHaveBeenCalledTimes(1));
   expect(screen.queryByText('💬 카카오로 시작하기')).toBeNull();
 });
-it('보호자 선택은 이메일 가입 대신 이름만 받는 화면으로 이어진다', () => {
-  render(<Auth />); fireEvent.click(screen.getByText('처음이에요 (회원가입)'));
-  fireEvent.click(screen.getByRole('radio', { name: /가족을 도와드려요/ }));
-  fireEvent.click(screen.getByText('다음'));
-  expect(screen.queryByLabelText('이메일')).toBeNull();
-  expect(screen.getByLabelText('보호자 이름')).toBeTruthy();
+it('본인 가입 버튼은 역할 재선택 없이 본인 가입으로 이어진다', () => {
+  render(<Auth />); fireEvent.click(screen.getByText('틀니 사용자로 회원가입'));
+  expect(screen.getByRole('heading', { name: '틀니 사용자 회원가입' })).toBeTruthy();
+  expect(screen.getByLabelText('이메일')).toBeTruthy();
 });
 it('가입 없이 시작할 때 보호자 역할과 이름을 보내며 이메일 가입은 호출하지 않는다', async () => {
   mocks.anonymous.mockResolvedValue({ error: null });

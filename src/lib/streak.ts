@@ -3,7 +3,7 @@ import type { RoutineLog, SlotId } from './types';
 
 export const PROGRESS_WINDOW_DAYS = 90;
 
-function dailyCounts(logs: RoutineLog[], enabledSlots: readonly SlotId[]) {
+export function dailyCounts(logs: RoutineLog[], enabledSlots: readonly SlotId[]) {
   const enabled = new Set(enabledSlots);
   const byDate = new Map<string, Set<SlotId>>();
   for (const log of logs) {
@@ -44,6 +44,7 @@ export function weeklyStats(logs: RoutineLog[], enabledSlots: readonly SlotId[],
       date: key,
       label: `${date.getMonth() + 1}/${date.getDate()} (${'일월화수목금토'[date.getDay()]})`,
       done: byDate.get(key)?.size ?? 0,
+      hasRecords: byDate.has(key),
       isToday: i === 6,
     };
   });

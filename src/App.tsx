@@ -1,3 +1,4 @@
+import { ConnectionStatus } from './components/ConnectionStatus';
 import { useEffect } from 'react';
 import { isSupabaseConfigured } from './lib/supabase';
 import { AuthProvider, useAuth } from './state/AuthContext';
@@ -43,6 +44,7 @@ export default function App() {
   }
   return (
     <AuthProvider>
+      <ConnectionStatus />
       <Router />
     </AuthProvider>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
@@ -19,7 +19,10 @@ export default function SettingsA1() {
   const { session, profile, refresh, signOut } = useAuth();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState('');
+  const [draftTimes, setDraftTimes] = useState<Record<string, string>>({});
+  const saving = useRef(false);
+  const [initialError, setInitialError] = useState('');
   const [notifState, setNotifState] = useState<NotificationPermission>('prompt');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -46,6 +49,7 @@ export default function SettingsA1() {
       ]);
       if (r.error || d.error) throw r.error || d.error;
       setRoutines((r.data as Routine[]) ?? []);
+      setInitialError('');
       if (d.data) {
         setMadeYear(String(d.data.made_year));
         setMadeMonth(String(d.data.made_month));
@@ -56,9 +60,9 @@ export default function SettingsA1() {
       if (Capacitor.isNativePlatform() && perm === 'granted') {
         setNotificationStatus(await routineNotificationStatus((r.data as Routine[]) ?? []));
       } else setNotificationStatus(null);
-      } catch (err) { setError(friendlyError(err)); }
+      } catch (err) { setInitialError(friendlyError(err)); }
       finally { setLoading(false); }
-  }, [session]);
+  }, [session?.user.id]);
   useEffect(() => { void load(); }, [load]);
   const refreshPermission = useCallback(async () => {
     try {
@@ -73,6 +77,7 @@ export default function SettingsA1() {
   useRefreshOnResume(refreshPermission);
 
   if (loading) return <Splash text="설정을 불러오는 중..." />;
+  if (initialError) return <Screen><Title>설정</Title><ErrorBox message={initialError} /><BigButton onClick={load}>설정 다시 불러오기</BigButton></Screen>;
 
   const setFontMode = async (mode: 'normal' | 'large') => {
     if (!session) return;
@@ -85,17 +90,19 @@ export default function SettingsA1() {
   };
 
   const updateTime = async (r: Routine, time: string) => {
-    if (busy || testBusy || voiceBusy) return;
+    if (saving.current || busy || testBusy || voiceBusy) return;
     if (!isValidTime(time)) { setError('관리 시간을 다시 골라주세요.'); return; }
     setError('');
-    setSaved(false);
+    setSaved('');
+    saving.current = true;
     setBusy(true);
     try {
     const next = routines.map((x) => (x.id === r.id ? { ...x, alarm_time: time } : x));
     const result = await db().from('routines').update({ alarm_time: time }).eq('id', r.id).select('id').single();
     if (result.error) throw result.error;
     setRoutines(next);
-    setSaved(true);
+    setSaved(`${r.label} 시간을 저장했어요.`);
+    setDraftTimes(current => { const next = { ...current }; delete next[r.id]; return next; });
     setNotificationStatus(null);
     try {
       const applied = await scheduleRoutines(next);
@@ -104,7 +111,7 @@ export default function SettingsA1() {
     }
     catch { setError('시간은 저장했지만 알림을 바꾸지 못했어요. 알림 다시 적용을 눌러주세요.'); }
     } catch (err) { setError(friendlyError(err)); }
-    finally { setBusy(false); }
+    finally { saving.current = false; setBusy(false); }
   };
 
   const turnOnNotifications = async () => {
@@ -130,10 +137,11 @@ export default function SettingsA1() {
   };
 
   const saveDenture = async () => {
-    if (!session) return;
+    if (!session || saving.current || busy) return;
     if (!recallPreview) { setError('제작 연도와 월을 확인해주세요. 미래 날짜는 입력할 수 없어요.'); return; }
     setError('');
     setDentureSaved(false);
+    saving.current = true;
     setBusy(true);
     try {
     const result = await db().from('dentures').upsert({
@@ -146,7 +154,7 @@ export default function SettingsA1() {
     if (result.error) throw result.error;
     setDentureSaved(true);
     } catch (err) { setError(friendlyError(err)); }
-    finally { setBusy(false); }
+    finally { saving.current = false; setBusy(false); }
   };
 
   const recallPreview = /^\d{4}$/.test(madeYear) && /^([1-9]|1[0-2])$/.test(madeMonth)
@@ -157,7 +165,7 @@ export default function SettingsA1() {
     <Screen>
       <Title>설정</Title>
       <ErrorBox message={error} />
-      {error && <BigButton variant="ghost" onClick={load} disabled={busy}>설정 다시 불러오기</BigButton>}
+      {error && <p>입력값은 그대로예요. 연결을 확인한 뒤 해당 저장 버튼을 다시 눌러주세요.</p>}
 
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 6 }}>🔔 관리 시간 알림</p>
@@ -210,21 +218,23 @@ export default function SettingsA1() {
       <Card>
         <p style={{ fontWeight: 800, marginBottom: 4 }}>⏰ 알림 시간</p>
         <p style={{ color: 'var(--text-sub)', fontSize: 15, marginBottom: 10 }}>
-          바꾸면 바로 저장돼요 {saved && <strong style={{ color: 'var(--success)' }}>· 저장됨 ✓</strong>}
+          시간을 바꾸고 해당 항목의 저장 버튼을 눌러주세요. 저장 전에는 기존 시간에 알림이 울려요.
         </p>
+        {saved && <p role="status">{saved}</p>}
         {routines.map((r) => (
           <div key={r.id} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0',
+            display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center', padding: '12px 0',
           }}>
             <span style={{ fontWeight: 700 }}>{r.label}</span>
             <input
               type="time"
               aria-label={`${r.label} 알림 시간`}
               disabled={busy}
-              value={r.alarm_time.slice(0, 5)}
-              onChange={(e) => updateTime(r, e.target.value)}
-              style={{ fontSize: 18, padding: 8, border: '2px solid var(--border)', borderRadius: 10 }}
+              value={draftTimes[r.id] ?? r.alarm_time.slice(0, 5)}
+              onChange={(e) => { setDraftTimes(current => ({ ...current, [r.id]: e.target.value })); setSaved(''); setError(''); }}
+              style={{ fontSize: 'inherit', minHeight: 52, padding: 8, border: '2px solid var(--border)', borderRadius: 10 }}
             />
+            {draftTimes[r.id] !== undefined && draftTimes[r.id] !== r.alarm_time.slice(0, 5) && <BigButton disabled={busy || testBusy || voiceBusy || !isValidTime(draftTimes[r.id])} onClick={() => updateTime(r, draftTimes[r.id])}>{r.label} 시간 저장</BigButton>}
           </div>
         ))}
       </Card>
@@ -239,8 +249,8 @@ export default function SettingsA1() {
           onYearChange={(value) => { setMadeYear(value); setDentureSaved(false); }}
           onMonthChange={(value) => { setMadeMonth(value); setDentureSaved(false); }} />
         <div style={{ display: 'grid', gap: 12, margin: '12px 0' }}>
-          <Field label="다니는 치과" value={clinicName} onChange={(value) => { setClinicName(value); setDentureSaved(false); }} placeholder="예) 튼튼치과" />
-          <Field label="치과 전화번호" value={clinicPhone} onChange={(value) => { setClinicPhone(value); setDentureSaved(false); }} inputMode="tel" placeholder="예) 02-123-4567" />
+          <Field disabled={busy} label="다니는 치과" value={clinicName} onChange={(value) => { setClinicName(value); setDentureSaved(false); }} placeholder="예) 튼튼치과" />
+          <Field disabled={busy} label="치과 전화번호" value={clinicPhone} onChange={(value) => { setClinicPhone(value); setDentureSaved(false); }} inputMode="tel" placeholder="예) 02-123-4567" />
         </div>
         {recallPreview && (
           <p style={{ color: 'var(--primary)', fontWeight: 700, marginBottom: 12 }}>

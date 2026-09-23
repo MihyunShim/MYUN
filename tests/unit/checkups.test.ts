@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidCheckupDate, nextCheckup } from '../../src/lib/checkups';
+import { isValidCheckupDate, isValidVisitDate, nextCheckup } from '../../src/lib/checkups';
 
 describe('담당 치과 검진 일정', () => {
   const now = new Date(2026, 8, 11, 0, 5);
@@ -16,4 +16,12 @@ describe('담당 치과 검진 일정', () => {
     expect(nextCheckup(null, '2026-12-01')).toEqual({ date: '2026-12-01', confirmed: false, label: '이전 앱에서 계산한 참고일' });
     expect(nextCheckup(null)).toBeNull();
   });
+});
+
+it('실제 방문일은 오늘까지 허용하며 미래·유효하지 않은 날짜는 거부한다', () => {
+  const now = new Date(2026, 8, 23, 0, 5);
+  expect(isValidVisitDate('2026-09-23', now)).toBe(true);
+  expect(isValidVisitDate('2026-09-24', now)).toBe(false);
+  expect(isValidVisitDate('2026-02-29', now)).toBe(false);
+  expect(isValidVisitDate('2024-02-29', now)).toBe(true);
 });

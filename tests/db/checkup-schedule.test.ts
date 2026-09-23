@@ -24,6 +24,8 @@ beforeAll(async () => {
   await pg.exec('grant all on all tables in schema public to anon, authenticated');
   await pg.exec(readFileSync('db/migrations/004_account_safety.sql', 'utf8'));
   await pg.exec(readFileSync('db/migrations/005_checkup_schedule.sql', 'utf8'));
+  await pg.exec(readFileSync('db/migrations/006_guardian_approval.sql', 'utf8'));
+  await pg.exec(readFileSync('db/migrations/007_request_and_visit_integrity.sql', 'utf8'));
 });
 beforeEach(async () => {
   await pg.exec('truncate auth.users cascade');
@@ -66,4 +68,25 @@ describe('검진 일정의 실제 SQL 권한', () => {
     await asUser(elder, 'select public.delete_own_account()');
     expect((await pg.query('select user_id from public.checkup_schedules')).rows).toEqual([{ user_id: stranger }]);
   });
+});
+
+it('방문 기록 재시도는 중복 생성하지 않고 수정·삭제는 본인만 한다', async () => {
+  const create = () => asUser(elder, "select public.save_checkup_visit('2026-01-10') as id");
+  const id = (await create()).rows[0].id;
+  expect((await create()).rows[0].id).toBe(id);
+  expect((await pg.query('select * from public.checkups')).rows).toHaveLength(1);
+  await expect(asUser(guardian, `select public.save_checkup_visit('2026-01-09','${id}','2026-01-10')`)).rejects.toThrow(/VISIT_NOT_ALLOWED/);
+  await expect(asUser(stranger, `select public.delete_checkup_visit('${id}','2026-01-10')`)).rejects.toThrow(/VISIT_CHANGED/);
+  await asUser(elder, `select public.save_checkup_visit('2026-01-09','${id}','2026-01-10')`);
+  await expect(asUser(elder, `select public.delete_checkup_visit('${id}','2026-01-10')`)).rejects.toThrow(/VISIT_CHANGED/);
+  await asUser(elder, `select public.delete_checkup_visit('${id}','2026-01-09')`);
+  expect((await pg.query('select * from public.checkups')).rows).toHaveLength(0);
+});
+it('검진 기록은 미래·빈 날짜와 중복 날짜 수정을 거부한다', async () => {
+  await expect(asUser(elder, "select public.save_checkup_visit('9999-01-01')")).rejects.toThrow(/INVALID_VISIT_DATE/);
+  await expect(asUser(elder, "select public.save_checkup_visit(null)")).rejects.toThrow(/INVALID_VISIT_DATE/);
+  const id = (await asUser(elder, "select public.save_checkup_visit('2026-01-10') as id")).rows[0].id;
+  await asUser(elder, "select public.save_checkup_visit('2026-01-11')");
+  await expect(asUser(elder, `select public.save_checkup_visit('2026-01-11','${id}','2026-01-10')`)).rejects.toThrow(/VISIT_DUPLICATE/);
+  await expect(pg.transaction(async tx => { await tx.exec('set local role anon'); return tx.query("select public.save_checkup_visit('2026-01-10')"); })).rejects.toThrow(/permission denied/);
 });

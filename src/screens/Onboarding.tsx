@@ -139,7 +139,7 @@ export default function Onboarding() {
       </>)}
 
       {step === 4 && (<>
-        <Title sub="가족이 이 코드를 입력하면 관리 현황을 함께 볼 수 있어요">가족 초대코드</Title>
+        <Title sub="가족이 이 코드로 요청하면, 내 설정에서 승인한 뒤 관리 현황을 함께 볼 수 있어요">가족 초대코드</Title>
         <Card style={{ textAlign: 'center', background: 'var(--primary-light)' }}>
           <p style={{ fontSize: 36, fontWeight: 800, letterSpacing: 6, color: 'var(--primary)' }}>
             {profile?.invite_code ?? '------'}

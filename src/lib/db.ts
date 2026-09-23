@@ -25,6 +25,11 @@ export function friendlyError(err: unknown): string {
   if (err instanceof Error && err.message.startsWith('VOICE_PREPARATION_FAILED: ')) return err.message.slice('VOICE_PREPARATION_FAILED: '.length);
   if (m.includes('voice_preparation_failed')) return '한국어 음성 안내를 준비하지 못했어요. 앱을 켜둔 채 다시 시도하거나 기본 알림음을 선택해주세요.';
   if (m.includes('anonymous_provider_disabled') || m.includes('anonymous sign-ins are disabled')) return '가입 없는 보호자 연결이 아직 서버에서 준비되지 않았어요. 앱 운영자에게 문의해주세요.';
+  if (m.includes('already_linked')) return '이미 연결된 가족이 있어요. 가족 현황을 확인하거나 기존 연결을 해제한 뒤 요청해주세요.';
+  if (m.includes('visit_changed')) return '검진 기록이 변경되었거나 없어요. 다시 불러온 뒤 확인해주세요.';
+  if (m.includes('visit_duplicate')) return '같은 날짜의 검진 기록이 이미 있어요. 날짜를 확인해주세요.';
+  if (m.includes('visit_not_allowed')) return '본인의 검진 기록만 수정할 수 있어요.';
+  if (m.includes('invalid_visit_date')) return '실제 검진을 받은 날짜를 다시 확인해주세요.';
   if (m.includes('request_expired')) return '요청이 만료되었거나 이미 처리됐어요. 목록을 다시 확인해주세요.';
   if (m.includes('request_pending')) return '먼저 보낸 연결 요청을 취소한 뒤 다시 요청해주세요.';
   if (m.includes('request_not_allowed')) return '이 요청을 처리할 권한이 없어요. 목록을 다시 확인해주세요.';
@@ -32,7 +37,7 @@ export function friendlyError(err: unknown): string {
   if (m.includes('cannot_link_self')) return '본인 계정에는 연결할 수 없어요. 보호자의 별도 계정을 사용해주세요.';
   if (m.includes('link_with_invite_code') && m.includes('pgrst202')) return '가족 연결 기능을 아직 사용할 수 없어요. 앱 운영자에게 문의해주세요.';
   if (m.includes('invalid_routine_time')) return '관리 시간을 다시 골라주세요.';
-  if (m.includes('pgrst202') || m.includes('delete_own_account') || m.includes('list_my_care_links')) return '계정 관리 기능을 아직 사용할 수 없어요. 앱 운영자에게 문의해주세요.';
+  if (m.includes('pgrst202') || m.includes('delete_own_account') || m.includes('list_my_care_links')) return '이 기능의 서버 업데이트가 아직 준비되지 않았어요. 앱 운영자에게 문의해주세요.';
 
   // 서버에 아예 닿지 못한 경우 (연결 실패 · 서버 일시정지 · 인터넷 끊김)
   // Supabase 무료 플랜은 7일 미사용 시 프로젝트가 자동 일시정지되어 주소 자체가 사라진다

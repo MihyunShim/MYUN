@@ -64,7 +64,7 @@ export function BigButton({
 }
 
 export function Field({
-  label, value, onChange, type = 'text', placeholder, inputMode,
+  label, value, onChange, type = 'text', placeholder, inputMode, disabled,
 }: {
   label: string;
   value: string;
@@ -72,6 +72,7 @@ export function Field({
   type?: string;
   placeholder?: string;
   inputMode?: 'text' | 'numeric' | 'tel' | 'email';
+  disabled?: boolean;
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -81,6 +82,7 @@ export function Field({
         value={value}
         placeholder={placeholder}
         inputMode={inputMode}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: '100%', minHeight: 52, fontSize: 'max(19px, 1em)', padding: '0 16px',

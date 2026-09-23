@@ -33,7 +33,10 @@ beforeAll(async () => {
     create function public.flag_missed_routines() returns void language sql as $$ select $$;`);
   await pg.exec(readFileSync('db/migrations/003_undo_check.sql', 'utf8'));
   await pg.exec(readFileSync('db/migrations/004_account_safety.sql', 'utf8'));
+  await pg.exec(readFileSync('db/migrations/005_checkup_schedule.sql', 'utf8'));
   await pg.exec(readFileSync('db/migrations/006_guardian_approval.sql', 'utf8'));
+  await pg.exec(readFileSync('db/migrations/007_request_and_visit_integrity.sql', 'utf8'));
+  await pg.exec(readFileSync('db/migrations/007_request_and_visit_integrity.sql', 'utf8'));
 });
 beforeEach(async () => {
   await pg.exec('truncate auth.users cascade');
@@ -89,4 +92,30 @@ it('중복 요청은 하나만 저장하고 잘못된 코드는 요청을 생성
   expect((await pg.query('select * from public.guardian_requests')).rows).toHaveLength(0);
   await request(); await request();
   expect((await pg.query('select * from public.guardian_requests')).rows).toHaveLength(1);
+});
+
+it('대기 요청 재전송은 ID와 만료 시각을 바꾸지 않는다', async () => {
+  const id = await request();
+  await pg.exec("update public.guardian_requests set expires_at=now()+interval '1 hour'");
+  const before = (await pg.query('select expires_at from public.guardian_requests')).rows[0];
+  expect(await request()).toBe(id);
+  expect((await pg.query('select expires_at from public.guardian_requests')).rows[0]).toEqual(before);
+});
+it('거절 후 새 요청은 새 ID를 사용하고 오래된 승인 버튼은 차단한다', async () => {
+  const old = await request();
+  await asUser(elder, `select public.resolve_guardian_request('${old}',false)`);
+  const fresh = await request();
+  expect(fresh).not.toBe(old);
+  await expect(asUser(elder, `select public.resolve_guardian_request('${old}',true)`)).rejects.toThrow(/REQUEST_NOT_ALLOWED/);
+  expect((await asUser(guardian, 'select * from public.routines')).rows).toHaveLength(0);
+  await asUser(elder, `select public.resolve_guardian_request('${fresh}',true)`);
+  await expect(request()).rejects.toThrow(/ALREADY_LINKED/);
+});
+it('해제 후 과거 요청을 재승인할 수 없고 이전 코드는 재사용할 수 없다', async () => {
+  const id = await request();
+  await asUser(elder, `select public.resolve_guardian_request('${id}',true)`);
+  await asUser(guardian, "update public.care_links set status='revoked'");
+  await expect(asUser(elder, `select public.resolve_guardian_request('${id}',true)`)).rejects.toThrow(/REQUEST_EXPIRED/);
+  await expect(request()).rejects.toThrow(/INVALID_CODE/);
+  expect((await asUser(guardian, 'select * from public.routine_logs')).rows).toHaveLength(0);
 });

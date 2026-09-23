@@ -73,7 +73,7 @@ export default function ProgressA1() {
                   <span style={{ fontWeight: day.isToday ? 800 : 400 }}>
                     {day.label}{day.isToday ? ' · 오늘' : ''}
                   </span>
-                  <span>{day.done}/{totalSlots}개 완료</span>
+                  <span>{!totalSlots ? '관리 항목 없음' : day.hasRecords ? `${day.done}/${totalSlots}개 완료 기록` : day.isToday ? '아직 기록 없음' : '기록 없음'}</span>
                 </div>
                 <div aria-hidden="true" style={{ marginTop: 4, height: 10, borderRadius: 8, background: 'var(--border)', overflow: 'hidden' }}>
                   <div style={{ width: `${ratio * 100}%`, height: '100%', background: ratio >= 1 ? 'var(--success)' : 'var(--accent)' }} />
@@ -83,7 +83,7 @@ export default function ProgressA1() {
           })}
         </ul>
         <p style={{ color: 'var(--text-sub)', marginTop: 14 }}>
-          현재 켜진 관리 항목을 기준으로 계산해요. 항목 설정을 바꾸면 이전 날짜의 완료 수와 연속 일수도 달라질 수 있어요.
+          기록이 없다고 관리를 하지 않은 것은 아니에요. 현재 켜진 관리 항목을 기준으로 계산해요. 항목 설정을 바꾸면 이전 날짜의 완료 수와 연속 일수도 달라질 수 있어요.
         </p>
       </Card>
 

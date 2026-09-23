@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
 import { calculateRecall } from '../lib/recall';
 import { Screen, Title, Card, BigButton, Splash, ErrorBox } from '../components/ui';
 import { calendarDaysUntil, localDateString } from '../lib/dates';
-import { isValidCheckupDate, nextCheckup, type CheckupSchedule } from '../lib/checkups';
+import { isValidCheckupDate, isValidVisitDate, nextCheckup, type CheckupSchedule } from '../lib/checkups';
 import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 
 interface Denture {
@@ -35,23 +35,28 @@ export default function CheckupA1() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [visitEdit, setVisitEdit] = useState<Checkup | null>(null);
+  const [visitDate, setVisitDate] = useState('');
+  const [visitDelete, setVisitDelete] = useState<Checkup | null>(null);
+  const operation = useRef(false);
 
   const load = useCallback(async () => {
     if (!session) return;
     try {
     const [d, c, planned] = await Promise.all([
       db().from('dentures').select('*').eq('user_id', session.user.id).maybeSingle(),
-      db().from('checkups').select('*').eq('user_id', session.user.id).order('visited_on', { ascending: false }),
+      db().from('checkups').select('*').eq('user_id', session.user.id).order('visited_on', { ascending: false }).limit(100),
       db().from('checkup_schedules').select('user_id,scheduled_on').eq('user_id', session.user.id).maybeSingle(),
     ]);
     if (d.error || c.error) throw d.error || c.error;
-    setError('');
+    setLoadError('');
     setScheduleReady(!planned.error);
     setScheduleError(planned.error ? '치과에서 안내받은 일정을 불러오지 못했어요. 다시 불러와 주세요.' : '');
     setSchedule(planned.error ? null : planned.data as CheckupSchedule | null);
     setDenture((d.data as Denture) ?? null);
     setCheckups((c.data as Checkup[]) ?? []);
-    } catch (err) { setError(friendlyError(err)); }
+    } catch (err) { setLoadError(friendlyError(err)); }
     finally { setLoading(false); }
   }, [session]);
 
@@ -59,6 +64,7 @@ export default function CheckupA1() {
   useRefreshOnResume(load);
 
   if (loading) return <Splash text="검진 정보를 불러오는 중..." />;
+  if (loadError) return <Screen><Title>치과 검진</Title><ErrorBox message={loadError} /><BigButton onClick={load}>다시 불러오기</BigButton></Screen>;
 
   const recall = denture ? calculateRecall(denture.made_year, denture.made_month) : null;
   const latest = checkups[0] ?? null;
@@ -68,7 +74,8 @@ export default function CheckupA1() {
   const dDay = next?.confirmed ? calendarDaysUntil(next.date) : null;
 
   const saveSchedule = async () => {
-    if (!session || busy || !isValidCheckupDate(dateInput)) return;
+    if (!session || operation.current || busy || !isValidCheckupDate(dateInput)) return;
+    operation.current = true;
     setBusy(true); setScheduleError(''); setNotice('');
     try {
       const result = await db().from('checkup_schedules').upsert({ user_id: session.user.id, scheduled_on: dateInput }, { onConflict: 'user_id' }).select('user_id,scheduled_on').single();
@@ -76,11 +83,12 @@ export default function CheckupA1() {
       setSchedule(result.data as CheckupSchedule); setEditingSchedule(false);
       setNotice('치과에서 안내받은 검진일을 저장했어요.');
     } catch (err) { setScheduleError(friendlyError(err)); }
-    finally { setBusy(false); }
+    finally { operation.current = false; setBusy(false); }
   };
 
   const cancelSchedule = async () => {
-    if (!session || !schedule || busy) return;
+    if (!session || !schedule || operation.current || busy) return;
+    operation.current = true;
     setBusy(true); setScheduleError(''); setNotice('');
     try {
       const result = await db().from('checkup_schedules').delete().eq('user_id', session.user.id).eq('scheduled_on', schedule.scheduled_on).select('user_id');
@@ -89,26 +97,28 @@ export default function CheckupA1() {
       setSchedule(null); setConfirmCancel(false); setEditingSchedule(false);
       setNotice('앱에서 검진일을 삭제했어요. 치과 예약 취소는 치과에 직접 연락해 주세요.');
     } catch (err) { setScheduleError(friendlyError(err)); }
-    finally { setBusy(false); }
+    finally { operation.current = false; setBusy(false); }
   };
 
-  const recordCheckup = async () => {
-    if (!session || busy || checkups.some((c) => c.visited_on === localDateString())) return;
-    setError('');
-    setBusy(true);
+  const mutateVisit = async (action: 'add' | 'edit' | 'delete') => {
+    if (!session || operation.current) return;
+    if (action === 'edit' && (!visitEdit || !isValidVisitDate(visitDate))) return;
+    if (action === 'delete' && !visitDelete) return;
+    operation.current = true; setBusy(true); setError(''); setNotice('');
     try {
-      const today = new Date();
-      const result = await db().from('checkups').insert({
-        user_id: session.user.id,
-        visited_on: localDateString(today),
-      });
-      if (result.error?.code === '23502') { setError('검진 기록 설정을 업데이트해야 해요. 앱 운영자에게 문의해 주세요.'); return; }
+      const result = action === 'delete'
+        ? await db().rpc('delete_checkup_visit', { visit_id: visitDelete!.id, previous_date: visitDelete!.visited_on })
+        : await db().rpc('save_checkup_visit', {
+          visit_date: action === 'add' ? localDateString() : visitDate,
+          visit_id: action === 'add' ? null : visitEdit!.id,
+          previous_date: action === 'add' ? null : visitEdit!.visited_on,
+        });
       if (result.error) throw result.error;
+      setVisitEdit(null); setVisitDelete(null);
+      setNotice(action === 'delete' ? '검진 기록을 삭제했어요.' : action === 'edit' ? '검진 날짜를 수정했어요.' : '오늘 검진을 기록했어요.');
       await load();
     } catch (err) { setError(friendlyError(err)); }
-    finally {
-      setBusy(false);
-    }
+    finally { operation.current = false; setBusy(false); }
   };
 
   const fmt = (s: string) => {
@@ -120,6 +130,7 @@ export default function CheckupA1() {
     <Screen>
       <Title sub="틀니도 정기 점검이 필요해요">치과 검진</Title>
       <ErrorBox message={error} />
+      {notice && <p role="status">{notice}</p>}
       {error && <BigButton variant="ghost" onClick={() => { setError(''); void load(); }}>다시 불러오기</BigButton>}
       <p style={{ fontSize: 15, color: 'var(--text-sub)' }}>검진 시기는 담당 치과에서 개인 상태에 맞게 정해 주세요. 앱의 기존 자동 계산값은 검증된 개인별 권고가 아니에요.</p>
 
@@ -129,7 +140,7 @@ export default function CheckupA1() {
         background: dDay !== null && dDay <= 7 ? '#FEF2F2' : 'var(--primary-light)',
         borderColor: dDay !== null && dDay <= 7 ? 'var(--danger)' : 'var(--primary)',
       }}>
-        {next ? (<>
+        {!scheduleReady ? <p>일정을 확인하지 못했어요. 아래에서 다시 불러와 주세요.</p> : next ? (<>
           <p style={{ fontWeight: 700, color: 'var(--text-sub)' }}>{next.label}</p>
           {dDay !== null && <p style={{ fontSize: 34, fontWeight: 800, color: dDay <= 7 ? 'var(--danger)' : 'var(--primary)' }}>
             {dDay < 0 ? `${-dDay}일 지났어요` : dDay === 0 ? '오늘이에요!' : `D-${dDay}`}
@@ -150,7 +161,6 @@ export default function CheckupA1() {
         <p>날짜를 저장하면 연결된 가족도 확인할 수 있어요. 치과 예약이나 예약 변경이 자동으로 접수되지는 않아요.</p>
         <ErrorBox message={scheduleError} />
         {(!scheduleReady || scheduleError) && <BigButton variant="ghost" disabled={busy} onClick={load}>일정 다시 불러오기</BigButton>}
-        {notice && <p role="status">{notice}</p>}
         {scheduleReady && !editingSchedule && <BigButton variant="ghost" disabled={busy} onClick={() => { setDateInput(schedule?.scheduled_on ?? ''); setEditingSchedule(true); setConfirmCancel(false); setNotice(''); }}>{schedule ? '검진일 변경하기' : '안내받은 검진일 입력하기'}</BigButton>}
         {editingSchedule && <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
           <label style={{ display: 'grid', gap: 8 }}>담당 치과에서 정한 검진일
@@ -184,7 +194,7 @@ export default function CheckupA1() {
 
       {/* 다니는 치과 */}
       {denture?.clinic_name && (
-        <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Card style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <p style={{ fontWeight: 800 }}>🏥 {denture.clinic_name}</p>
             {denture.clinic_phone && <p style={{ color: 'var(--text-sub)' }}>{denture.clinic_phone}</p>}
@@ -200,23 +210,35 @@ export default function CheckupA1() {
         </Card>
       )}
 
-      <BigButton onClick={recordCheckup} disabled={busy || !scheduleReady || checkups.some((c) => c.visited_on === localDateString())}>
+      <BigButton onClick={() => void mutateVisit('add')} disabled={busy || !scheduleReady || checkups.some((c) => c.visited_on === localDateString())}>
         {busy ? '기록 중...' : checkups.some((c) => c.visited_on === localDateString()) ? '오늘 검진을 기록했어요 ✓' : '오늘 검진 받았어요 ✓'}
       </BigButton>
 
       <p style={{ color: 'var(--text-sub)' }}>검진 기록을 남겨도 안내받은 일정은 유지돼요. 검진 후에는 다음 일정을 변경하거나 지난 일정을 삭제해 주세요.</p>
 
-      {/* 검진 이력 */}
-      {checkups.length > 0 && (
-        <Card>
-          <p style={{ fontWeight: 800, marginBottom: 10 }}>지난 검진</p>
-          {checkups.map((c) => (
-            <p key={c.id} style={{ color: 'var(--text-sub)', padding: '6px 0' }}>
-              ✓ {fmt(c.visited_on)}
-            </p>
-          ))}
-        </Card>
-      )}
+      <Card>
+        <h2 style={{ fontSize: '1.1em', marginBottom: 10 }}>지난 검진</h2>
+        <p>최근 100건까지 보여드려요. 날짜를 잘못 기록했다면 수정하거나 삭제할 수 있어요.</p>
+        {!checkups.length && <p>아직 검진 기록이 없어요.</p>}
+        {checkups.map(c => <div key={c.id} style={{ padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
+          <p style={{ fontWeight: 700 }}>{fmt(c.visited_on)}</p>
+          {visitEdit?.id === c.id ? <div style={{ display: 'grid', gap: 12 }}>
+            <label>실제 검진 받은 날짜
+              <input type="date" value={visitDate} min="1900-01-01" max={localDateString()} disabled={busy} onChange={e => setVisitDate(e.target.value)} style={{ width: '100%', minHeight: 56, fontSize: 'inherit' }} />
+            </label>
+            {visitDate && !isValidVisitDate(visitDate) && <p role="alert">오늘 또는 이전의 올바른 날짜를 선택해주세요.</p>}
+            <BigButton disabled={busy || !isValidVisitDate(visitDate)} onClick={() => void mutateVisit('edit')}>검진 기록 수정 저장</BigButton>
+            <BigButton variant="ghost" disabled={busy} onClick={() => setVisitEdit(null)}>수정 취소</BigButton>
+          </div> : visitDelete?.id === c.id ? <>
+            <p>이 검진 기록을 삭제할까요? 안내받은 다음 일정은 유지돼요.</p>
+            <BigButton variant="danger" disabled={busy} onClick={() => void mutateVisit('delete')}>이 검진 기록 삭제</BigButton>
+            <BigButton variant="ghost" disabled={busy} onClick={() => setVisitDelete(null)}>기록 유지</BigButton>
+          </> : <div style={{ display: 'grid', gap: 8 }}>
+            <BigButton variant="ghost" disabled={busy} onClick={() => { setVisitEdit(c); setVisitDate(c.visited_on); setVisitDelete(null); setError(''); setNotice(''); }}>{fmt(c.visited_on)} 수정</BigButton>
+            <BigButton variant="ghost" disabled={busy} onClick={() => { setVisitDelete(c); setVisitEdit(null); setError(''); setNotice(''); }}>{fmt(c.visited_on)} 삭제</BigButton>
+          </div>}
+        </div>)}
+      </Card>
     </Screen>
   );
 }

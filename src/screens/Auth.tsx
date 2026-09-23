@@ -5,7 +5,7 @@ import { kakaoLogin, rememberPendingRole, clearPendingRole } from '../lib/kakao'
 import { Screen, Title, BigButton, ErrorBox } from '../components/ui';
 import { AppInformation } from '../components/AccountActions';
 
-type Mode = 'welcome' | 'guardian' | 'role' | 'signup' | 'login';
+type Mode = 'welcome' | 'guardian' | 'signup' | 'login';
 
 // 회원가입/로그인 (docs/설계/01 A1-0, A2-0 진입부)
 export default function Auth() {
@@ -96,8 +96,10 @@ export default function Auth() {
       <Screen style={{ justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', fontSize: 56 }}>🦷</div>
         <Title sub="틀니 관리, 이제 앱이 챙겨드려요">틀니케어</Title>
-        <BigButton onClick={() => { setGuardianEntry(false); navigate('role'); }}>처음이에요 (회원가입)</BigButton>
+        <p>틀니를 직접 사용하시나요? 관리 기록을 시작해요.</p>
+        <BigButton onClick={() => { setGuardianEntry(false); setRole('A1'); navigate('signup'); }}>틀니 사용자로 회원가입</BigButton>
         <BigButton variant="ghost" onClick={() => navigate('login')}>이미 계정이 있어요 (로그인)</BigButton>
+        <p>초대받은 가족은 이메일 가입 없이 연결해요.</p>
         <BigButton onClick={() => { setGuardianEntry(true); setRole('A2'); navigate('guardian'); }}>가족 초대코드가 있어요</BigButton>
         <AppInformation />
       </Screen>
@@ -125,30 +127,9 @@ export default function Auth() {
     <BigButton variant="ghost" onClick={() => { setGuardianEntry(false); navigate('welcome'); }}>뒤로</BigButton>
   </Screen>;
 
-  if (mode === 'role') {
-    return (
-      <Screen>
-        <Title sub="맞는 것을 하나 골라주세요">어떻게 사용하시나요?</Title>
-        <fieldset style={{ border: 0, padding: 0, display: 'grid', gap: 16 }}>
-          <legend style={{ marginBottom: 12 }}>사용자 선택</legend>
-          {([{ value: 'A1', title: '🙋 제가 직접 사용해요', description: '틀니를 사용하시는 본인' },
-            { value: 'A2', title: '💗 가족을 도와드려요', description: '자녀·배우자 등 보호자' }] as const).map((option) => (
-            <label key={option.value} style={{ padding: 20, borderRadius: 16, border: `2px solid ${role === option.value ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--surface)', cursor: 'pointer' }}>
-              <input type="radio" name="role" value={option.value} checked={role === option.value} onChange={() => setRole(option.value)} />
-              <span style={{ fontWeight: 800, marginLeft: 8 }}>{option.title}</span>
-              <p style={{ color: 'var(--text-sub)', marginTop: 8 }}>{option.description}</p>
-            </label>
-          ))}
-        </fieldset>
-        <BigButton onClick={() => { if (role === 'A2') { setGuardianEntry(true); navigate('guardian'); } else navigate('signup'); }}>다음</BigButton>
-        <BigButton variant="ghost" onClick={() => navigate('welcome')}>뒤로</BigButton>
-      </Screen>
-    );
-  }
-
   return (
     <Screen>
-      <Title>{guardianEntry ? (mode === 'signup' ? '보호자 회원가입' : '보호자 로그인') : mode === 'signup' ? '회원가입' : '로그인'}</Title>
+      <Title>{guardianEntry ? (mode === 'signup' ? '보호자 회원가입' : '보호자 로그인') : mode === 'signup' ? '틀니 사용자 회원가입' : '로그인'}</Title>
       {(guardianEntry || (mode === 'signup' && role === 'A2')) && <p>보호자 본인의 이메일을 사용해주세요. 가입·로그인을 마치면 초대코드 입력 화면이 열려요. 이미 연결했다면 가족 현황으로 이동해요.</p>}
       <form onSubmit={(event) => { event.preventDefault(); void submit(); }} aria-busy={busy} style={{ display: 'grid', gap: 16 }}>
         {mode === 'signup' && <AuthInput label="이름" name="name" autoComplete="name" value={name} onChange={setName} disabled={busy} placeholder="예) 김순자" />}
@@ -168,7 +149,7 @@ export default function Auth() {
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
       <KakaoButton /></>}
-      <BigButton variant="ghost" disabled={busy} onClick={() => navigate(guardianEntry ? 'guardian' : mode === 'signup' ? 'role' : 'welcome')}>뒤로</BigButton>
+      <BigButton variant="ghost" disabled={busy} onClick={() => navigate(guardianEntry ? 'guardian' : 'welcome')}>뒤로</BigButton>
     </Screen>
   );
 }
