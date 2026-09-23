@@ -1,10 +1,11 @@
+import notice from '../fixtures/privacy-notice.json';
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Auth from '../../src/screens/Auth';
 const mocks = vi.hoisted(() => ({ login: vi.fn(), signup: vi.fn(), anonymous: vi.fn() }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true } }));
-vi.mock('../../src/lib/db', () => ({ db: () => ({ auth: { signInWithPassword: mocks.login, signUp: mocks.signup, signInAnonymously: mocks.anonymous } }), friendlyError: () => '연결 실패' }));
+vi.mock('../../src/lib/db', () => ({ db: () => ({ rpc: async()=>({data:notice,error:null}), auth: { signInWithPassword: mocks.login, signUp: mocks.signup, signInAnonymously: mocks.anonymous } }), friendlyError: () => '연결 실패' }));
 vi.mock('../../src/lib/kakao', () => ({ kakaoLogin: vi.fn(), rememberPendingRole: vi.fn(), clearPendingRole: vi.fn() }));
 vi.mock('../../src/components/AccountActions', () => ({ AppInformation: () => <p>앱 안내</p> }));
 beforeEach(() => vi.clearAllMocks()); afterEach(cleanup);
@@ -29,14 +30,20 @@ it('가입 없이 시작할 때 보호자 역할과 이름을 보내며 이메�
   mocks.anonymous.mockResolvedValue({ error: null });
   render(<Auth />); fireEvent.click(screen.getByText('가족 초대코드가 있어요'));
   fireEvent.change(screen.getByLabelText('보호자 이름'), { target: { value: ' 가족 ' } });
+  fireEvent.click(await screen.findByLabelText('만 14세 이상이에요'));
+  fireEvent.click(screen.getByLabelText('[필수] 개인정보 수집·이용에 동의해요'));
+  fireEvent.click(screen.getByLabelText('[필수] 개인정보 국외 이전에 동의해요'));
   fireEvent.click(screen.getByText('가입 없이 초대코드 입력하기'));
-  await waitFor(() => expect(mocks.anonymous).toHaveBeenCalledWith({ options: { data: { role: 'A2', name: '가족' } } }));
+  await waitFor(() => expect(mocks.anonymous).toHaveBeenCalledWith({ options: { data: { role: 'A2', name: '가족', privacy: {version:notice.version,age14:true,personal:true,overseas:true,sensitive:false} } } }));
   expect(mocks.signup).not.toHaveBeenCalled(); expect(mocks.login).not.toHaveBeenCalled();
 });
 it('익명 인증 실패 후 이름을 유지하고 재시도할 수 있다', async () => {
   mocks.anonymous.mockResolvedValueOnce({ error: new Error('disabled') }).mockResolvedValueOnce({ error: null });
   render(<Auth />); fireEvent.click(screen.getByText('가족 초대코드가 있어요'));
   fireEvent.change(screen.getByLabelText('보호자 이름'), { target: { value: '가족' } });
+  fireEvent.click(await screen.findByLabelText('만 14세 이상이에요'));
+  fireEvent.click(screen.getByLabelText('[필수] 개인정보 수집·이용에 동의해요'));
+  fireEvent.click(screen.getByLabelText('[필수] 개인정보 국외 이전에 동의해요'));
   fireEvent.click(screen.getByText('가입 없이 초대코드 입력하기'));
   await screen.findByText('연결 실패');
   fireEvent.click(screen.getByText('가입 없이 초대코드 입력하기'));

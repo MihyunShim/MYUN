@@ -1,3 +1,4 @@
+import { FamilyConsent } from './PrivacyConsent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
@@ -15,6 +16,7 @@ export function GuardianRequests({ elder = false, reloadKey = 0, onPendingChange
   elder?: boolean; reloadKey?: number; onPendingChange?: (pending: boolean) => void;
 }) {
   const { refresh } = useAuth();
+  const [approving,setApproving]=useState<string|null>(null);
   const [rows, setRows] = useState<Request[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -70,7 +72,8 @@ export function GuardianRequests({ elder = false, reloadKey = 0, onPendingChange
       {statusOf(r) === 'pending' && <>
         {Number.isFinite(Date.parse(r.expires_at)) && <p>유효 기한: {new Date(r.expires_at).toLocaleString('ko-KR')}</p>}
         {elder ? <>
-          <BigButton disabled={busy} onClick={() => void act(r.id, true)}>아는 가족이에요 · 연결 승인</BigButton>
+          <BigButton disabled={busy} onClick={() => setApproving(r.id)}>아는 가족이에요 · 연결 승인</BigButton>
+          {approving===r.id && <FamilyConsent recipient={r.other_name} requestId={r.id} onCancel={()=>setApproving(null)} onComplete={async()=>{setApproving(null);await load();setNotice('가족 연결을 승인했어요.');await refresh();}}/>}
           <BigButton variant="ghost" disabled={busy} onClick={() => void act(r.id, false)}>모르는 요청이에요 · 거절</BigButton>
         </> : <BigButton variant="ghost" disabled={busy} onClick={() => void act(r.id)}>연결 요청 취소</BigButton>}
       </>}

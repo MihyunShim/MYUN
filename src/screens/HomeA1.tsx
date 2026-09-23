@@ -117,10 +117,9 @@ export default function HomeA1() {
     setError('');
     setSendingSOS(true);
     try {
-    const links = await db().from('care_links').select('id', { count: 'exact', head: true })
-      .eq('elder_id', session.user.id).eq('status', 'active');
+    const links = await db().rpc('count_sharing_guardians');
     if (links.error) throw links.error;
-    if (!links.count) { setError('연결된 가족이 없어요. 가족이나 치과에 직접 전화해주세요.'); return; }
+    if (!links.data) { setError('공유 동의를 완료한 가족이 없어요. 가족이나 치과에 직접 전화해주세요.'); return; }
     const result = await db().from('alerts').insert({
       elder_id: session.user.id, type: 'emergency', detail: typeId,
     });

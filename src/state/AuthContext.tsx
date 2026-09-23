@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { db, friendlyError } from '../lib/db';
-import { applyPendingRole } from '../lib/kakao';
 import { cancelRoutineNotifications, setNotificationOwner } from '../lib/notifications';
 import type { Profile } from '../lib/types';
 
@@ -11,6 +10,7 @@ interface AuthState {
   session: Session | null;
   profile: Profile | null;
   onboarded: boolean;
+  privacyReady: boolean;
   elderId: string | null;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [privacyReady, setPrivacyReady] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
   const [elderId, setElderId] = useState<string | null>(null);
   const generation = useRef(0);
@@ -39,15 +40,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await cancelRoutineNotifications();
         if (request !== generation.current) return;
         setProfile(null);
+        setPrivacyReady(false);
         setOnboarded(false);
         setElderId(null);
         return;
       }
-      if (s.user.app_metadata.provider === 'kakao') await applyPendingRole(s.user.id);
       const p = await db().from('profiles').select('*').eq('id', s.user.id).single();
       if (p.error) throw p.error;
       if (!p.data) throw new Error('PROFILE_MISSING');
       const prof = p.data as Profile;
+      const privacy = await db().rpc('get_privacy_status');
+      if (privacy.error) throw privacy.error;
+      const consentReady = privacy.data?.personal === true && (prof.role === 'A2' || privacy.data?.sensitive === true);
+      if (request !== generation.current) return;
+      setPrivacyReady(consentReady);
+      if (!consentReady) {
+        setNotificationOwner(null);
+        await cancelRoutineNotifications();
+        if (request !== generation.current) return;
+        setProfile(prof); setOnboarded(false); setElderId(null); return;
+      }
       let linkedElder: string | null = null;
       let ready = false;
       if (prof.role === 'A2') {
@@ -88,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setNotificationOwner(null);
         generation.current += 1;
         setProfile(null);
+        setPrivacyReady(false);
         setOnboarded(false);
         setElderId(null);
         setLoading(true);
@@ -122,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ loading, error, session, profile, onboarded, elderId, refresh, signOut }}>
+    <AuthContext.Provider value={{ loading, error, session, profile, onboarded, privacyReady, elderId, refresh, signOut }}>
       {children}
     </AuthContext.Provider>
   );

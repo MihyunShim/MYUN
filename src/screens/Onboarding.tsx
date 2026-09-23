@@ -25,7 +25,6 @@ export default function Onboarding() {
   }, [step, accountOpen]);
 
   const [name, setName] = useState(profile?.name ?? '');
-  const [birthYear, setBirthYear] = useState('');
   const [madeYear, setMadeYear] = useState('');
   const [madeMonth, setMadeMonth] = useState('');
   const [clinicName, setClinicName] = useState('');
@@ -45,7 +44,7 @@ export default function Onboarding() {
     try {
       const uid = session.user.id;
       const { error: e1 } = await db().from('profiles')
-        .update({ name: name.trim(), birth_year: parseInt(birthYear) || null })
+        .update({ name: name.trim() })
         .eq('id', uid);
       if (e1) { setError(friendlyError(e1)); return; }
 
@@ -95,8 +94,7 @@ export default function Onboarding() {
       {step === 0 && (<>
         <Title sub="어떻게 불러드릴까요?">만나서 반가워요!</Title>
         <Field label="이름" value={name} onChange={setName} placeholder="예) 김순자" />
-        <Field label="태어난 연도 (선택)" value={birthYear} onChange={setBirthYear} inputMode="numeric" placeholder="예) 1948" />
-        <BigButton onClick={() => setStep(1)} disabled={!name.trim() || (!!birthYear && (!/^\d{4}$/.test(birthYear) || Number(birthYear) < 1900 || Number(birthYear) > new Date().getFullYear()))}>다음</BigButton>
+        <BigButton onClick={() => setStep(1)} disabled={!name.trim()}>다음</BigButton>
       </>)}
 
       {step === 1 && (<>

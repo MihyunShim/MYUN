@@ -1,3 +1,5 @@
+import { CheckConsent, ConsentDetails } from '../components/PrivacyConsent';
+import { usePrivacyNotice } from '../lib/privacy';
 import { useCallback, useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
@@ -9,6 +11,8 @@ const RELATIONS = ['어머니', '아버지', '배우자', '그 외 가족'];
 
 // A2 연결 온보딩: 초대코드 입력 → 관계 선택 → 연결 (docs/설계/01 A2-0)
 export default function OnboardingA2() {
+  const { notice,error:privacyError }=usePrivacyNotice();
+  const [share,setShare]=useState(false);
   const { signOut } = useAuth();
   const [code, setCode] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
@@ -23,15 +27,15 @@ export default function OnboardingA2() {
   const validCode = /^[A-Z0-9]{6}$/.test(code);
 
   const link = async () => {
-    if (inFlight.current || pending || !checked || !validCode) return;
+    if (inFlight.current || pending || !checked || !validCode || !share || !notice) return;
     inFlight.current = true;
     setError('');
     setBusy(true);
     try {
       // Request creation does not grant access. The user must approve separately.
-      const { error: err } = await db().rpc('request_guardian_connection', {
+      const { error: err } = await db().rpc('request_guardian_with_consent', {
         code: code.trim(),
-        rel: relation,
+        rel: relation, notice_version: notice.version, share,
       });
       if (err) { setError(friendlyError(err)); return; }
       setPending(true); setLinked(true);
@@ -57,7 +61,7 @@ export default function OnboardingA2() {
         <span style={{ fontWeight: 700 }}>초대코드 (6자리)</span>
         <input
           value={code}
-          onChange={(e) => { setCode(e.target.value.replace(/\s/g, '').toUpperCase().slice(0, 6)); setError(''); }}
+          onChange={(e) => { setCode(e.target.value.replace(/\s/g, '').toUpperCase().slice(0, 6)); setError(''); setShare(false); }}
           disabled={busy}
           autoCapitalize="characters"
           autoCorrect="off"
@@ -88,8 +92,9 @@ export default function OnboardingA2() {
         </div>
       </Card>
 
-      <ErrorBox message={error} />
-      <button type="submit" disabled={busy || !validCode} style={{ minHeight: 56, width: '100%', padding: 12, background: 'var(--primary)', color: '#fff', fontWeight: 700, opacity: busy || !validCode ? 0.5 : 1 }}>{busy ? '요청 중...' : '연결 요청하기'}</button>
+      <ErrorBox message={error || privacyError} />
+      {notice && <CheckConsent label="초대코드 사용자에게 내 이름·관계 제공에 동의해요" checked={share} onChange={setShare} disabled={busy}><p>받는 사람: 입력한 초대코드를 발급한 틀니 사용자</p><ConsentDetails detail={notice.document.guardianShare}/></CheckConsent>}
+      <button type="submit" disabled={busy || !validCode || !share || !notice} style={{ minHeight: 56, width: '100%', padding: 12, background: 'var(--primary)', color: '#fff', fontWeight: 700, opacity: busy || !validCode ? 0.5 : 1 }}>{busy ? '요청 중...' : '연결 요청하기'}</button>
       </form>}
       <p>가입 없이 시작했다면 로그아웃 후에는 새 초대와 승인이 필요해요.</p>
       <BigButton variant="ghost" disabled={busy} onClick={signOut}>로그아웃</BigButton>

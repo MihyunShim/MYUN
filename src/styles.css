@@ -83,3 +83,14 @@ main:focus { outline: none; }
   max-height: calc(100vh - 48px);
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
 }
+
+.privacy-fieldset { min-width: 0; border: 2px solid var(--border); border-radius: 12px; padding: 16px; }
+.privacy-fieldset legend { font-weight: 800; padding: 0 4px; }
+.privacy-details { margin: 12px 0; overflow-wrap: anywhere; }
+.privacy-details div { margin: 8px 0; }
+.privacy-details dt { font-weight: 700; }
+.privacy-details dd { margin: 4px 0 0; }
+.privacy-copy { overflow-wrap: anywhere; }
+.privacy-copy section { margin: 20px 0; }
+.privacy-copy h3 { font-size: 1.05em; }
+summary { cursor: pointer; min-height: 48px; padding: 12px 0; font-weight: 700; }

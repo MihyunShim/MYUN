@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({ callback: null as null | ((event: string, sessi
 vi.mock('../../src/lib/kakao', () => ({ applyPendingRole: vi.fn() }));
 vi.mock('../../src/lib/notifications', () => ({ cancelRoutineNotifications: mock.cancel, setNotificationOwner: mock.owner }));
 vi.mock('../../src/lib/db', () => ({ friendlyError: () => '연결 실패', db: () => ({
+  rpc: async () => ({ data: { personal:true, sensitive:true }, error:null }),
   auth: { onAuthStateChange: (callback: typeof mock.callback) => { mock.callback = callback; return { data: { subscription: { unsubscribe: mock.unsubscribe } } }; }, signOut: mock.signOut },
   from: (table: string) => {
     let userId: string;

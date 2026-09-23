@@ -30,7 +30,7 @@ export default function ReportA2() {
       since.setDate(since.getDate() - 14);
       const sinceStr = localDateString(since);
       const [p, r, l, c, planned] = await Promise.all([
-        db().from('profiles').select('name').eq('id', elderId).single(),
+        db().rpc('get_care_profile', { elder: elderId }),
         db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
         db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr).lte('log_date', localDateString()),
         db().from('checkups').select('visited_on,next_recall_on').eq('user_id', elderId)
@@ -38,6 +38,10 @@ export default function ReportA2() {
         db().from('checkup_schedules').select('user_id,scheduled_on').eq('user_id', elderId).maybeSingle(),
       ]);
       if (p.error || r.error || l.error || c.error) throw p.error || r.error || l.error || c.error;
+      if (!p.data) {
+        setElderName(''); setRoutines([]); setLogs([]); setCheckup(null); setSchedule(null);
+        setError('가족의 개인정보 공유 동의를 기다리고 있어요. 틀니 사용자 앱의 설정에서 공유 동의를 확인·갱신해주세요.'); return;
+      }
       setError('');
       setScheduleError(planned.error ? '치과에서 안내받은 일정을 불러오지 못했어요.' : '');
       setSchedule(planned.error ? null : planned.data as CheckupSchedule | null);

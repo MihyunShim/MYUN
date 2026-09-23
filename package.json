@@ -20,7 +20,8 @@
     "ios:check": "node scripts/check-ios.mjs",
     "ios:prepare": "npm run ios:check && npm run typecheck && npm run build && cap sync ios",
     "ios:run": "npm run ios:prepare && cap open ios",
-    "release:check": "node scripts/check-release.mjs"
+    "release:check": "node scripts/check-release.mjs",
+    "privacy:prepare": "node scripts/prepare-privacy.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.1",

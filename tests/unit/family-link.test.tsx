@@ -1,3 +1,4 @@
+import notice from '../fixtures/privacy-notice.json';
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -13,6 +14,7 @@ vi.mock('../../src/components/GuardianRequests', async () => {
     return <p>승인 대기 목록</p>;
   } };
 });
+vi.mock('../../src/lib/privacy',async()=>{const actual=await vi.importActual<typeof import('../../src/lib/privacy')>('../../src/lib/privacy');return {...actual,usePrivacyNotice:()=>({notice,error:'',loading:false})};});
 vi.mock('../../src/screens/AccountScreen', () => ({ default: () => null }));
 beforeEach(() => { vi.resetAllMocks(); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.copy } }); });
 afterEach(cleanup);
@@ -21,10 +23,11 @@ it('정규화한 코드로 한 번만 연결하고 완료 확인 후 현황을 �
   mocks.rpc.mockReturnValue(new Promise(resolve => { finish = resolve; }));
   render(<OnboardingA2 />);
   fireEvent.change(screen.getByLabelText('초대코드 (6자리)'), { target: { value: 'ab c123' } });
+  fireEvent.click(screen.getByLabelText('초대코드 사용자에게 내 이름·관계 제공에 동의해요'));
   const form = screen.getByText('연결 요청하기').closest('form')!;
   fireEvent.submit(form); fireEvent.submit(form);
   expect(mocks.rpc).toHaveBeenCalledTimes(1);
-  expect(mocks.rpc).toHaveBeenCalledWith('request_guardian_connection', { code: 'ABC123', rel: '어머니' });
+  expect(mocks.rpc).toHaveBeenCalledWith('request_guardian_with_consent', { code: 'ABC123', rel: '어머니',notice_version:notice.version,share:true });
   await act(async () => finish({ error: null }));
   expect(mocks.refresh).not.toHaveBeenCalled();
   expect(screen.getByText('연결 요청을 보냈어요')).toBeTruthy();
@@ -33,6 +36,7 @@ it('잘못된 코드 실패 후 입력을 유지하고 다시 연결한다', asy
   mocks.rpc.mockResolvedValueOnce({ error: new Error('INVALID_CODE') }).mockResolvedValueOnce({ error: null });
   render(<OnboardingA2 />);
   fireEvent.change(screen.getByLabelText('초대코드 (6자리)'), { target: { value: 'ABC123' } });
+  fireEvent.click(screen.getByLabelText('초대코드 사용자에게 내 이름·관계 제공에 동의해요'));
   fireEvent.click(screen.getByText('연결 요청하기'));
   await screen.findByText('최신 코드를 확인해주세요');
   expect((screen.getByLabelText('초대코드 (6자리)') as HTMLInputElement).value).toBe('ABC123');

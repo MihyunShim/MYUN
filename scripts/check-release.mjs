@@ -1,5 +1,5 @@
 import { loadEnv } from 'vite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 // Only validates configuration; never prints keys or contacts, contacts servers or publishes.
 const env = { ...loadEnv('production', process.cwd(), 'VITE_'), ...process.env };
@@ -17,6 +17,7 @@ const key = env.VITE_SUPABASE_ANON_KEY || '';
 let publicKey = key.startsWith('sb_publishable_') && key.length > 25;
 try { if (key.split('.').length === 3) publicKey = JSON.parse(Buffer.from(key.split('.')[1], 'base64url')).role === 'anon'; } catch { /* invalid */ }
 if (!publicKey || key.startsWith('sb_secret_')) issues.push('Supabase 공개 anon/publishable 키 (비밀 키 사용 금지)');
+if (!existsSync('privacy/generated/privacy.html') || !existsSync('privacy/generated/publish-notice.sql')) issues.push('운영자가 확정한 개인정보 안내 (npm run privacy:prepare -- privacy/notice.reviewed.json)');
 const config = JSON.parse(readFileSync('capacitor.config.json', 'utf8'));
 if (config.webDir !== 'dist' || config.server?.url) issues.push('배포용 Capacitor 설정: dist 사용, server.url 제거');
 if (issues.length) {

@@ -24,12 +24,16 @@ export default function HomeA2() {
     if (link.error) throw link.error;
     if (!link.data) { setElder(null); setRoutines([]); setLogs([]); setAlerts([]); await refresh(); return; }
     const [e, r, l, a] = await Promise.all([
-      db().from('profiles').select('*').eq('id', elderId).single(),
+      db().rpc('get_care_profile', { elder: elderId }),
       db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
       db().from('routine_logs').select('*').eq('user_id', elderId).eq('log_date', todayStr()),
       db().from('alerts').select('*').eq('elder_id', elderId).order('created_at', { ascending: false }).limit(20),
     ]);
     if (e.error || r.error || l.error || a.error) throw e.error || r.error || l.error || a.error;
+    if (!e.data) {
+      setElder(null); setRoutines([]); setLogs([]); setAlerts([]);
+      setError('가족의 개인정보 공유 동의를 기다리고 있어요. 틀니 사용자 앱의 설정에서 공유 동의를 확인·갱신해주세요.'); return;
+    }
     setError('');
     setElder((e.data as Profile) ?? null);
     setRoutines((r.data as Routine[]) ?? []);

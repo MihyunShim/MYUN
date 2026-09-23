@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AccountActions } from '../../src/components/AccountActions';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), signOut: vi.fn(), refresh: vi.fn() }));
 vi.mock('../../src/lib/db', () => ({ db: () => ({ rpc: mocks.rpc }), friendlyError: () => '연결 실패' }));
+vi.mock('../../src/components/PrivacyCenter',()=>({PrivacyCenter:()=>null}));
 vi.mock('../../src/state/AuthContext', () => ({ useAuth: () => ({ signOut: mocks.signOut, refresh: mocks.refresh }) }));
 beforeEach(() => { vi.clearAllMocks(); mocks.rpc.mockResolvedValue({ data: [], error: null }); mocks.signOut.mockResolvedValue(undefined); });
 afterEach(cleanup);

@@ -25,6 +25,11 @@ export function friendlyError(err: unknown): string {
   if (err instanceof Error && err.message.startsWith('VOICE_PREPARATION_FAILED: ')) return err.message.slice('VOICE_PREPARATION_FAILED: '.length);
   if (m.includes('voice_preparation_failed')) return '한국어 음성 안내를 준비하지 못했어요. 앱을 켜둔 채 다시 시도하거나 기본 알림음을 선택해주세요.';
   if (m.includes('anonymous_provider_disabled') || m.includes('anonymous sign-ins are disabled')) return '가입 없는 보호자 연결이 아직 서버에서 준비되지 않았어요. 앱 운영자에게 문의해주세요.';
+  if (m.includes('privacy_notice_unavailable')) return '개인정보 안내가 아직 준비되지 않았어요. 잠시 후 다시 확인해주세요.';
+  if (m.includes('privacy_consent_required') || m.includes('guardian_privacy_required')) return '최신 개인정보 안내와 동의 상태를 확인해주세요. 가족도 자신의 앱에서 확인해야 해요.';
+  if (m.includes('guardian_sharing_required')) return '보호자가 개인정보 제공에 동의한 새 요청이 필요해요. 기존 요청을 취소하고 다시 보내주세요.';
+  if (m.includes('sharing_consent_required')) return '공유할 개인정보와 건강정보를 확인한 뒤 각각 동의해주세요.';
+  if (m.includes('use_health_withdrawal')) return '기존 건강정보 동의를 철회하려면 개인정보 관리에서 건강정보 삭제·동의 철회를 이용해주세요.';
   if (m.includes('already_linked')) return '이미 연결된 가족이 있어요. 가족 현황을 확인하거나 기존 연결을 해제한 뒤 요청해주세요.';
   if (m.includes('visit_changed')) return '검진 기록이 변경되었거나 없어요. 다시 불러온 뒤 확인해주세요.';
   if (m.includes('visit_duplicate')) return '같은 날짜의 검진 기록이 이미 있어요. 날짜를 확인해주세요.';

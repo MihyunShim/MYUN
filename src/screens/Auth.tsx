@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { SignupConsent } from '../components/PrivacyConsent';
+import type { ConsentChoices } from '../lib/privacy';
 import { db, friendlyError } from '../lib/db';
-import { kakaoLogin, rememberPendingRole, clearPendingRole } from '../lib/kakao';
+import { clearPendingRole } from '../lib/kakao';
 import { Screen, Title, BigButton, ErrorBox } from '../components/ui';
 import { AppInformation } from '../components/AccountActions';
 
@@ -9,6 +10,7 @@ type Mode = 'welcome' | 'guardian' | 'signup' | 'login';
 
 // 회원가입/로그인 (docs/설계/01 A1-0, A2-0 진입부)
 export default function Auth() {
+  const [consent, setConsent] = useState<(ConsentChoices & {version:string}) | null>(null);
   const [mode, setMode] = useState<Mode>('welcome');
   const [guardianEntry, setGuardianEntry] = useState(false);
   const [role, setRole] = useState<'A1' | 'A2'>('A1');
@@ -20,7 +22,7 @@ export default function Auth() {
   const [needConfirm, setNeedConfirm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const submitting = useRef(false);
-  const navigate = (next: Mode) => { setError(''); setShowPassword(false); setPassword(''); setMode(next); };
+  const navigate = (next: Mode) => { setError(''); setShowPassword(false); setPassword(''); setConsent(null); setMode(next); };
 
   const submit = async () => {
     if (submitting.current) return;
@@ -30,12 +32,13 @@ export default function Auth() {
     try {
       clearPendingRole();
       if (mode === 'signup') {
+        if (!consent) { setError('개인정보 안내와 필수 동의 항목을 확인해주세요.'); return; }
         if (!name.trim()) { setError('이름을 입력해주세요.'); return; }
         if (password.length < 6) { setError('비밀번호는 6자 이상으로 만들어주세요.'); return; }
         const { data, error: err } = await db().auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { role, name: name.trim() } },
+          options: { data: { role, name: name.trim(), privacy: consent } },
         });
         if (err) { setError(friendlyError(err)); return; }
         if (!data.session) { setNeedConfirm(true); return; } // 이메일 확인이 켜져 있는 경우
@@ -52,31 +55,6 @@ export default function Auth() {
       setBusy(false);
     }
   };
-
-  // 카카오 로그인: 가입 경로면 선택한 역할을 보관해뒀다가 로그인 후 프로필에 반영
-  const kakao = async () => {
-    if (submitting.current) return;
-    submitting.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      if (mode === 'signup') rememberPendingRole(role);
-      else clearPendingRole();
-      const msg = await kakaoLogin();
-      if (msg) { clearPendingRole(); setError(friendlyError(msg)); }
-    } catch (err) { clearPendingRole(); setError(friendlyError(err)); }
-    finally { submitting.current = false; setBusy(false); }
-  };
-
-  const KakaoButton = () => (
-    <button type="button" disabled={busy} onClick={kakao} style={{
-      width: '100%', minHeight: 56, fontSize: 19, fontWeight: 700,
-      background: '#FEE500', color: '#191919', borderRadius: 12,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    }}>
-      💬 카카오로 시작하기
-    </button>
-  );
 
   if (needConfirm) {
     return (
@@ -108,16 +86,17 @@ export default function Auth() {
 
   if (mode === 'guardian') return <Screen>
     <Title sub="이메일·비밀번호 없이 시작해요.">초대받은 가족·보호자</Title>
-    <p>① 내 이름 입력 → ② 초대코드로 연결 요청 → ③ 사용자 승인 후 현황 확인</p>
+    <p>① 이름·개인정보 동의 → ② 초대코드로 연결 요청 → ③ 사용자 승인 후 현황 확인</p>
     <AuthInput label="보호자 이름" name="guardian-name" autoComplete="name" value={name} onChange={setName} disabled={busy} placeholder="사용자가 알아볼 수 있는 내 이름" />
-    <p>이 기기에 연결 정보가 저장돼요. 로그아웃하거나 앱 데이터를 지우거나 휴대폰을 바꾸면 다시 초대받아야 해요.</p>
+    <p>이메일 회원가입 대신 보호자용 임시 계정이 만들어져요. 이름과 연결 정보는 서버에, 로그인 정보는 이 기기에 저장돼요. 로그아웃하거나 앱 데이터를 지우거나 휴대폰을 바꾸면 다시 초대받아야 해요.</p>
+    <SignupConsent role="A2" disabled={busy} onChange={setConsent} />
     <ErrorBox message={error} />
-    <BigButton disabled={busy || !name.trim()} onClick={async () => {
-      if (submitting.current) return;
+    <BigButton disabled={busy || !name.trim() || !consent} onClick={async () => {
+      if (submitting.current || !consent) return;
       submitting.current = true; setBusy(true); setError('');
       try {
         clearPendingRole();
-        const result = await db().auth.signInAnonymously({ options: { data: { role: 'A2', name: name.trim() } } });
+        const result = await db().auth.signInAnonymously({ options: { data: { role: 'A2', name: name.trim(), privacy: consent } } });
         if (result.error) throw result.error;
       } catch (err) { setError(friendlyError(err)); }
       finally { submitting.current = false; setBusy(false); }
@@ -138,17 +117,12 @@ export default function Auth() {
         <button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} style={{ minHeight: 48, color: 'var(--primary)', background: 'var(--primary-light)', fontSize: 'inherit' }}>
           {showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
         </button>
+        {mode === 'signup' && <SignupConsent role={role} disabled={busy} onChange={setConsent} />}
         <ErrorBox message={error} />
-        <button type="submit" disabled={busy || !email.trim() || !password} style={{ minHeight: 56, fontSize: 19, fontWeight: 700, color: '#fff', background: 'var(--primary)' }}>
+        <button type="submit" disabled={busy || !email.trim() || !password || (mode === 'signup' && !consent)} style={{ minHeight: 56, fontSize: 19, fontWeight: 700, color: '#fff', background: 'var(--primary)' }}>
           {busy ? '잠시만요...' : mode === 'signup' ? '가입하기' : '로그인'}
         </button>
       </form>
-      {!Capacitor.isNativePlatform() && <><div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        <span style={{ color: 'var(--text-sub)', fontSize: 15 }}>또는</span>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
-      <KakaoButton /></>}
       <BigButton variant="ghost" disabled={busy} onClick={() => navigate(guardianEntry ? 'guardian' : 'welcome')}>뒤로</BigButton>
     </Screen>
   );
