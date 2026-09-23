@@ -107,3 +107,8 @@ it('서버 예약 작업은 일반 사용자가 호출하지 못하고 동의한
  await user(guardian,"update public.care_links set status='revoked'");expect((await user(elder,'select public.count_sharing_guardians() as count')).rows[0].count).toBe(0);
  await expect(user(elder,'select public.flag_missed_routines()')).rejects.toThrow(/permission denied/);
 });
+
+it('다른 사용자의 건강정보 동의 상태를 공개 함수로 탐색할 수 없다',async()=>{
+ expect((await user(stranger,'select public.has_processing_consent($1,true) as allowed',[elder])).rows[0].allowed).toBe(false);
+ await expect(user(stranger,'select public.private_has_processing_consent($1,true)',[elder])).rejects.toThrow(/permission denied/);
+});

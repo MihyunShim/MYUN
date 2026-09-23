@@ -76,16 +76,22 @@ create or replace function public.get_privacy_notice() returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('version',version,'document',document) from public.privacy_notices where active;
 $$;
-create or replace function public.has_processing_consent(owner uuid, health boolean default false) returns boolean
+create or replace function public.private_has_processing_consent(owner uuid, health boolean default false) returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists(select 1 from public.privacy_state s join public.privacy_notices n on n.version=s.version
     join public.profiles p on p.id=s.user_id
     where s.user_id=owner and n.active and (not health or (s.sensitive and p.role='A1')));
 $$;
+-- Exposed predicate discloses only the caller's own status; internal cross-account
+-- checks stay private to SECURITY DEFINER routines.
+create or replace function public.has_processing_consent(owner uuid,health boolean default false) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(owner=auth.uid(),false) and public.private_has_processing_consent(owner,health);
+$$;
 create or replace function public.get_privacy_status() returns jsonb
 language sql stable security definer set search_path = '' as $$
-  select jsonb_build_object('personal',public.has_processing_consent(auth.uid()),
-    'sensitive',public.has_processing_consent(auth.uid(),true));
+  select jsonb_build_object('personal',public.private_has_processing_consent(auth.uid()),
+    'sensitive',public.private_has_processing_consent(auth.uid(),true));
 $$;
 -- Private helper; metadata never constitutes authorization after this server receipt.
 create or replace function public.record_privacy_consent(owner uuid, choices jsonb) returns void
@@ -135,7 +141,7 @@ revoke update on public.profiles from public, anon, authenticated;
 grant update(name,font_size_mode) on public.profiles to authenticated;
 create or replace function public.is_guardian_of(elder uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select public.has_processing_consent(auth.uid()) and public.has_processing_consent(elder,true)
+  select public.private_has_processing_consent(auth.uid()) and public.private_has_processing_consent(elder,true)
     and exists(select 1 from public.care_links l join public.sharing_consents s on s.link_id=l.id
       join public.privacy_notices n on n.version=s.version
       where l.elder_id=elder and l.guardian_id=auth.uid() and l.status='active' and s.withdrawn_at is null and n.active);
@@ -172,7 +178,7 @@ begin
   if auth.uid() is null then return new; end if;
   owner := case when tg_table_name='alerts' then (to_jsonb(new)->>'elder_id')::uuid else (to_jsonb(new)->>'user_id')::uuid end;
   perform 1 from public.profiles where id=owner for update;
-  if not public.has_processing_consent(owner,true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
+  if not public.private_has_processing_consent(owner,true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
   return new;
 end $$;
 do $$ declare t text; begin
@@ -206,7 +212,7 @@ language plpgsql security definer set search_path = '' as $$
 declare result uuid; v text;
 begin
   select version into v from public.privacy_notices where active;
-  if not public.has_processing_consent(auth.uid()) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
+  if not public.private_has_processing_consent(auth.uid()) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
   if share is distinct from true or notice_version is distinct from v then raise exception 'SHARING_CONSENT_REQUIRED'; end if;
   result := public.private_request_connection(code,rel);
   if not exists(select 1 from public.privacy_events where user_id=auth.uid() and action='guardian_request' and choices->>'request_id'=result::text) then
@@ -221,10 +227,10 @@ declare l public.care_links; v text; g uuid;
 begin
   perform 1 from public.profiles where id=auth.uid() for update;
   select version into v from public.privacy_notices where active;
-  if not public.has_processing_consent(auth.uid(),true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
+  if not public.private_has_processing_consent(auth.uid(),true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
   if personal_share is distinct from true or sensitive_share is distinct from true or notice_version is distinct from v then raise exception 'SHARING_CONSENT_REQUIRED'; end if;
   select guardian_id into g from public.guardian_requests where id=request_id and elder_id=auth.uid();
-  if not public.has_processing_consent(g) then raise exception 'GUARDIAN_PRIVACY_REQUIRED'; end if;
+  if not public.private_has_processing_consent(g) then raise exception 'GUARDIAN_PRIVACY_REQUIRED'; end if;
   if not exists(select 1 from public.privacy_events where user_id=g and action='guardian_request' and choices->>'request_id'=request_id::text and version=v) then raise exception 'GUARDIAN_SHARING_REQUIRED'; end if;
   perform public.private_resolve_request(request_id,true);
   select * into l from public.care_links where elder_id=auth.uid() and guardian_id=g and status='active';
@@ -241,7 +247,7 @@ begin
   select version into v from public.privacy_notices where active;
   select * into l from public.care_links where id=link_id and elder_id=auth.uid() and status='active' for update;
   if not found then raise exception 'REQUEST_NOT_ALLOWED'; end if;
-  if not public.has_processing_consent(auth.uid(),true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
+  if not public.private_has_processing_consent(auth.uid(),true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
   if personal_share is distinct from true or sensitive_share is distinct from true or notice_version is distinct from v then raise exception 'SHARING_CONSENT_REQUIRED'; end if;
   insert into public.sharing_consents(link_id,version) values(l.id,v)
     on conflict on constraint sharing_consents_pkey do update set version=excluded.version,accepted_at=now(),withdrawn_at=null;
@@ -266,7 +272,7 @@ create or replace function public.save_checkup_visit(visit_date date,visit_id uu
 language plpgsql security definer set search_path = '' as $$
 begin
   perform 1 from public.profiles where id=auth.uid() for update;
-  if not public.has_processing_consent(auth.uid(),true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
+  if not public.private_has_processing_consent(auth.uid(),true) then raise exception 'PRIVACY_CONSENT_REQUIRED'; end if;
   return public.private_save_visit(visit_date,visit_id,previous_date);
 end $$;
 -- Rights remain available even when a notice changes or the member declines health processing.
@@ -325,7 +331,7 @@ language sql stable security definer set search_path = '' as $$
   select count(*) from public.care_links l join public.sharing_consents s on s.link_id=l.id
     join public.privacy_notices n on n.version=s.version
     where l.elder_id=auth.uid() and l.status='active' and s.withdrawn_at is null and n.active
-      and public.has_processing_consent(auth.uid(),true) and public.has_processing_consent(l.guardian_id);
+      and public.private_has_processing_consent(auth.uid(),true) and public.private_has_processing_consent(l.guardian_id);
 $$;
 -- Only operational cron/service roles may run this job; no processing before consent.
 create or replace function public.flag_missed_routines() returns void
@@ -333,17 +339,17 @@ language plpgsql security definer set search_path = '' as $$
 begin
   insert into public.alerts(elder_id,type,detail)
   select p.id,'missed','오늘 관리 기록이 적어요. 가족에게 안부를 확인해주세요.' from public.profiles p
-  where p.role='A1' and public.has_processing_consent(p.id,true)
+  where p.role='A1' and public.private_has_processing_consent(p.id,true)
     and exists(select 1 from public.care_links l join public.sharing_consents s on s.link_id=l.id
       join public.privacy_notices n on n.version=s.version
       where l.elder_id=p.id and l.status='active' and s.withdrawn_at is null and n.active
-        and public.has_processing_consent(l.guardian_id))
+        and public.private_has_processing_consent(l.guardian_id))
     and exists(select 1 from public.routines where user_id=p.id and enabled)
     and (select count(*) from public.routine_logs where user_id=p.id and log_date=(now() at time zone 'Asia/Seoul')::date)<3
     and not exists(select 1 from public.alerts where elder_id=p.id and type='missed' and (created_at at time zone 'Asia/Seoul')::date=(now() at time zone 'Asia/Seoul')::date);
 end $$;
 -- Explicit privilege surface; helpers and triggers cannot be called by app users.
-revoke all on function public.record_privacy_consent(uuid,jsonb),public.handle_new_user(),public.protect_privacy_notice(),
+revoke all on function public.private_has_processing_consent(uuid,boolean),public.record_privacy_consent(uuid,jsonb),public.handle_new_user(),public.protect_privacy_notice(),
   public.private_resolve_request(uuid,boolean),public.private_request_connection(text,text),public.private_save_visit(date,uuid,date),
   public.withdraw_family_consent(),public.guard_health_write(),public.flag_missed_routines() from public,anon,authenticated;
 do $$ declare f text; begin

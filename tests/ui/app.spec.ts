@@ -1,4 +1,5 @@
-import privacyNotice from '../fixtures/privacy-notice.json';
+import { readFileSync } from 'node:fs';
+const privacyNotice=JSON.parse(readFileSync(new URL('../fixtures/privacy-notice.json',import.meta.url),'utf8'));
 import { expect, test, type Page } from '@playwright/test';
 import { DEFAULT_ROUTINES } from '../../src/lib/types';
 
