@@ -1,3 +1,4 @@
+import { useLatestRead } from '../lib/useLatestRead';
 import { useCallback, useEffect, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { localDateString, calendarDaysUntil } from '../lib/dates';
@@ -23,20 +24,23 @@ export default function ReportA2() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const beginRead = useLatestRead(elderId);
   const load = useCallback(async () => {
+    const request = beginRead();
     try {
       if (!elderId) return;
       const since = new Date();
       since.setDate(since.getDate() - 14);
       const sinceStr = localDateString(since);
       const [p, r, l, c, planned] = await Promise.all([
-        db().rpc('get_care_profile', { elder: elderId }),
-        db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
-        db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr).lte('log_date', localDateString()),
+        db().rpc('get_care_profile', { elder: elderId }).abortSignal(request.signal),
+        db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time').abortSignal(request.signal),
+        db().from('routine_logs').select('*').eq('user_id', elderId).gte('log_date', sinceStr).lte('log_date', localDateString()).abortSignal(request.signal),
         db().from('checkups').select('visited_on,next_recall_on').eq('user_id', elderId)
-          .order('visited_on', { ascending: false }).limit(1).maybeSingle(),
-        db().from('checkup_schedules').select('user_id,scheduled_on').eq('user_id', elderId).maybeSingle(),
+          .order('visited_on', { ascending: false }).limit(1).abortSignal(request.signal).maybeSingle(),
+        db().from('checkup_schedules').select('user_id,scheduled_on').eq('user_id', elderId).abortSignal(request.signal).maybeSingle(),
       ]);
+      if (!request.isCurrent()) return;
       if (p.error || r.error || l.error || c.error) throw p.error || r.error || l.error || c.error;
       if (!p.data) {
         setElderName(''); setRoutines([]); setLogs([]); setCheckup(null); setSchedule(null);
@@ -50,9 +54,9 @@ export default function ReportA2() {
       const slots = new Set((r.data as Routine[] ?? []).map((routine) => routine.slot));
       setLogs(((l.data as RoutineLog[]) ?? []).filter((log) => slots.has(log.slot)));
       setCheckup((c.data as CheckupRow) ?? null);
-    } catch (err) { setError(friendlyError(err)); }
-    finally { setLoading(false); }
-  }, [elderId]);
+    } catch (err) { if (request.isCurrent()) setError(friendlyError(err)); }
+    finally { if (request.isCurrent()) setLoading(false); }
+  }, [elderId, beginRead]);
   useEffect(() => { void load(); }, [load]);
   useRefreshOnResume(load);
 

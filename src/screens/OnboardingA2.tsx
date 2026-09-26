@@ -1,8 +1,8 @@
+import { SignOutButton } from '../components/SignOutButton';
 import { CheckConsent, ConsentDetails } from '../components/PrivacyConsent';
 import { usePrivacyNotice } from '../lib/privacy';
 import { useCallback, useRef, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
-import { useAuth } from '../state/AuthContext';
 import { Screen, Title, Card, BigButton, ErrorBox } from '../components/ui';
 import { GuardianRequests } from '../components/GuardianRequests';
 import AccountScreen from './AccountScreen';
@@ -13,7 +13,6 @@ const RELATIONS = ['어머니', '아버지', '배우자', '그 외 가족'];
 export default function OnboardingA2() {
   const { notice,error:privacyError }=usePrivacyNotice();
   const [share,setShare]=useState(false);
-  const { signOut } = useAuth();
   const [code, setCode] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const [relation, setRelation] = useState(RELATIONS[0]);
@@ -97,7 +96,7 @@ export default function OnboardingA2() {
       <button type="submit" disabled={busy || !validCode || !share || !notice} style={{ minHeight: 56, width: '100%', padding: 12, background: 'var(--primary)', color: '#fff', fontWeight: 700, opacity: busy || !validCode ? 0.5 : 1 }}>{busy ? '요청 중...' : '연결 요청하기'}</button>
       </form>}
       <p>가입 없이 시작했다면 로그아웃 후에는 새 초대와 승인이 필요해요.</p>
-      <BigButton variant="ghost" disabled={busy} onClick={signOut}>로그아웃</BigButton>
+      <SignOutButton disabled={busy} />
       <BigButton variant="ghost" disabled={busy} onClick={() => setAccountOpen(true)}>계정·앱 안내</BigButton>
     </Screen>
   );

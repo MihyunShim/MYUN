@@ -1,3 +1,5 @@
+import { useLatestRead } from '../lib/useLatestRead';
+import { SignOutButton } from '../components/SignOutButton';
 import { useEffect, useState, useCallback } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
@@ -8,7 +10,7 @@ import { useRefreshOnResume } from '../lib/useRefreshOnResume';
 
 // A2 보호자 홈: 부모님 오늘 현황 + 알림 (docs/설계/01 A2-1, A2-3 통합 초기 버전)
 export default function HomeA2() {
-  const { elderId, profile, signOut, refresh } = useAuth();
+  const { elderId, profile, refresh } = useAuth();
   const [elder, setElder] = useState<Profile | null>(null);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
@@ -16,19 +18,28 @@ export default function HomeA2() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reading, setReading] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const beginRead = useLatestRead(elderId);
   const load = useCallback(async () => {
-    if (!elderId) return;
+    const request = beginRead();
+    if (!elderId || !profile) return;
     try {
-    const link = await db().from('care_links').select('id').eq('elder_id', elderId).eq('guardian_id', profile!.id).eq('status', 'active').maybeSingle();
+    const link = await db().from('care_links').select('id').eq('elder_id', elderId).eq('guardian_id', profile.id).eq('status', 'active').abortSignal(request.signal).maybeSingle();
+    if (!request.isCurrent()) return;
     if (link.error) throw link.error;
-    if (!link.data) { setElder(null); setRoutines([]); setLogs([]); setAlerts([]); await refresh(); return; }
+    if (!link.data) {
+      setElder(null); setRoutines([]); setLogs([]); setAlerts([]); setLastUpdated(null);
+      setError('가족 연결이 해제됐어요. 연결 상태를 다시 확인해주세요.');
+      await refresh(); return;
+    }
     const [e, r, l, a] = await Promise.all([
-      db().rpc('get_care_profile', { elder: elderId }),
-      db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time'),
-      db().from('routine_logs').select('*').eq('user_id', elderId).eq('log_date', todayStr()),
-      db().from('alerts').select('*').eq('elder_id', elderId).order('created_at', { ascending: false }).limit(20),
+      db().rpc('get_care_profile', { elder: elderId }).abortSignal(request.signal),
+      db().from('routines').select('*').eq('user_id', elderId).eq('enabled', true).order('alarm_time').abortSignal(request.signal),
+      db().from('routine_logs').select('*').eq('user_id', elderId).eq('log_date', todayStr()).abortSignal(request.signal),
+      db().from('alerts').select('*').eq('elder_id', elderId).order('created_at', { ascending: false }).limit(20).abortSignal(request.signal),
     ]);
+    if (!request.isCurrent()) return;
     if (e.error || r.error || l.error || a.error) throw e.error || r.error || l.error || a.error;
     if (!e.data) {
       setElder(null); setRoutines([]); setLogs([]); setAlerts([]);
@@ -39,10 +50,10 @@ export default function HomeA2() {
     setRoutines((r.data as Routine[]) ?? []);
     setLogs((l.data as RoutineLog[]) ?? []);
     setAlerts((a.data as Alert[]) ?? []);
-    } catch (err) { setError(friendlyError(err)); }
-    finally { setLoading(false); }
-  }, [elderId, profile?.id, refresh]);
-
+    setLastUpdated(new Date());
+    } catch (err) { if (request.isCurrent()) setError(friendlyError(err)); }
+    finally { if (request.isCurrent()) setLoading(false); }
+  }, [elderId, profile?.id, refresh, beginRead]);
   useEffect(() => { void load(); }, [load]);
   useRefreshOnResume(load);
   useEffect(() => {
@@ -58,7 +69,7 @@ export default function HomeA2() {
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'alerts',
         filter: `elder_id=eq.${elderId}`,
-      }, () => { load(); })
+      }, () => { if (document.visibilityState === 'visible') void load(); })
       .subscribe();
     return () => { db().removeChannel(channel); };
   }, [elderId, load]);
@@ -101,16 +112,11 @@ export default function HomeA2() {
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>
           {profile?.name ? `${profile.name}님, ` : ''}안녕하세요 💗
         </h1>
-        <button onClick={signOut} style={{
-          background: 'none', color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)',
-          whiteSpace: 'nowrap', flexShrink: 0,
-          textDecoration: 'underline', minHeight: 48,
-        }}>
-          로그아웃
-        </button>
+        <SignOutButton compact />
       </div>
 
       <p style={{ color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)' }}>앱을 닫으면 도움 요청 푸시 알림은 오지 않아요. 급하면 직접 전화해주세요.</p>
+      {lastUpdated && <p>마지막 확인: {lastUpdated.toLocaleTimeString('ko-KR')} · 화면을 보는 동안 약 30초마다 갱신돼요.</p>}
       <BigButton variant="ghost" onClick={load}>현황 새로고침</BigButton>
       {/* 도움 요청 배너 (읽지 않은 것) */}
       {unreadEmergency.map((a) => (

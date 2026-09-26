@@ -1,3 +1,4 @@
+import { useLatestRead } from '../lib/useLatestRead';
 import { useCallback, useEffect, useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { localDateString } from '../lib/dates';
@@ -15,24 +16,27 @@ export default function ProgressA1() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const beginRead = useLatestRead(session?.user.id);
   const load = useCallback(async () => {
+    const request = beginRead();
     try {
       if (!session) return;
       const since = new Date();
       since.setDate(since.getDate() - (PROGRESS_WINDOW_DAYS - 1));
       const sinceStr = localDateString(since);
       const [r, l] = await Promise.all([
-        db().from('routines').select('*').eq('user_id', session.user.id).eq('enabled', true),
-        db().from('routine_logs').select('*').eq('user_id', session.user.id).gte('log_date', sinceStr).lte('log_date', localDateString()),
+        db().from('routines').select('*').eq('user_id', session.user.id).eq('enabled', true).abortSignal(request.signal),
+        db().from('routine_logs').select('*').eq('user_id', session.user.id).gte('log_date', sinceStr).lte('log_date', localDateString()).abortSignal(request.signal),
       ]);
+      if (!request.isCurrent()) return;
       if (r.error || l.error) throw r.error || l.error;
       setError('');
       setRoutines((r.data as Routine[]) ?? []);
       const slots = new Set((r.data as Routine[] ?? []).map((routine) => routine.slot));
       setLogs(((l.data as RoutineLog[]) ?? []).filter((log) => slots.has(log.slot)));
-    } catch (err) { setError(friendlyError(err)); }
-    finally { setLoading(false); }
-  }, [session]);
+    } catch (err) { if (request.isCurrent()) setError(friendlyError(err)); }
+    finally { if (request.isCurrent()) setLoading(false); }
+  }, [session?.user.id, beginRead]);
   useEffect(() => { void load(); }, [load]);
   useRefreshOnResume(load);
 

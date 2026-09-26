@@ -12,7 +12,7 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
   const access = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated' })}.fixture`;
   const session = { access_token: access, token_type: 'bearer', expires_in: 3600, refresh_token: 'fixture', user };
   const profile = { id, name: '시험 사용자', role, birth_year: 1950, invite_code: 'TEST01', font_size_mode: 'large' };
-  const state = { consent:true, health:true, notice:true, signupCalls:0, privacyChoices:null as unknown, privacyRequests:[] as {id:string;kind:string;status:string;created_at:string}[], visits: [] as { id: string; visited_on: string }[], requestStatus: '', anonymousStarts: 0, failSave: false, linked: false, failRead: false, failLink: false, linkWrites: 0, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, denture: { made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null as string | null }, logs: [] as Record<string, unknown>[] };
+  const state = { anonymous:false, shared:true, resends:0, failResend:false, logouts:0, consent:true, health:true, notice:true, signupCalls:0, privacyChoices:null as unknown, privacyRequests:[] as {id:string;kind:string;status:string;created_at:string}[], visits: [] as { id: string; visited_on: string }[], requestStatus: '', anonymousStarts: 0, failSave: false, linked: false, failRead: false, failLink: false, linkWrites: 0, sosWrites: 0, deletes: 0, schedule: null as null | { user_id: string; scheduled_on: string }, denture: { made_year: 2025, made_month: 1, clinic_name: '시험 치과', clinic_phone: null as string | null }, logs: [] as Record<string, unknown>[] };
   const routines = DEFAULT_ROUTINES.map((r, i) => ({ id: `r${i}`, user_id: elderId, slot: r.slot, label: r.label, alarm_time: r.time, enabled: true }));
   await page.routeWebSocket('wss://denturecare-test.supabase.co/**', (socket) => socket.close());
   await page.route('https://denturecare-test.supabase.co/**', async (route) => {
@@ -22,13 +22,14 @@ async function fixture(page: Page, role: 'A1' | 'A2' = 'A1') {
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...headers, 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,HEAD' } });
     const respond = (data: unknown, status = 200, extra = {}) => route.fulfill({ status, headers: { ...headers, ...extra }, body: JSON.stringify(data) });
     if (path.endsWith('/signup')) { state.anonymousStarts++;state.signupCalls++;state.privacyChoices=request.postDataJSON().data?.privacy;state.health=request.postDataJSON().data?.privacy?.sensitive===true; return respond({ ...session, user: { ...user, is_anonymous: true } }); }
-    if (path.endsWith('/token')) return respond(session);
+    if (path.endsWith('/token')) return respond({ ...session, user: { ...user, is_anonymous: state.anonymous } });
+    if (path.endsWith('/resend')) { state.resends++; return state.failResend ? respond({ msg: 'over_email_send_rate_limit', code: 'over_email_send_rate_limit' }, 429) : respond({}); }
     if (path.endsWith('/user')) return respond(user);
-    if (path.endsWith('/logout')) return route.fulfill({ status: 204, headers });
+    if (path.endsWith('/logout')) { state.logouts++; return route.fulfill({ status: 204, headers }); }
     if (path.endsWith('/rpc/get_privacy_notice')) return respond(state.notice?privacyNotice:null);
     if (path.endsWith('/rpc/get_privacy_status')) return respond({personal:state.consent,sensitive:state.health});
     if (path.endsWith('/rpc/accept_privacy_consent')) {state.privacyChoices=request.postDataJSON().choices;state.consent=true;state.health=request.postDataJSON().choices.sensitive;return respond(null);}
-    if (path.endsWith('/rpc/get_care_profile')) return respond({name:'시험 사용자'});
+    if (path.endsWith('/rpc/get_care_profile')) return respond(state.shared ? {name:'시험 사용자'} : null);
     if (path.endsWith('/rpc/list_privacy_events')) return respond([]);
     if (path.endsWith('/rpc/list_privacy_requests')) return respond(state.privacyRequests);
     if (path.endsWith('/rpc/submit_privacy_request')) {state.privacyRequests.push({id:'privacy-request',kind:request.postDataJSON().request_kind,status:'received',created_at:new Date().toISOString()});return respond('privacy-request');}
@@ -382,4 +383,56 @@ test('건강정보 철회는 재확인 후 실행하며 관리 화면을 닫는�
  await page.getByRole('button',{name:'건강정보 삭제하고 철회하기',exact:true}).click();
  await expect(page.getByRole('heading',{name:'개인정보 안내를 확인해주세요'})).toBeVisible();expect(state.health).toBe(false);
  await expect(page.getByRole('button',{name:'회원 탈퇴',exact:true})).toBeVisible();await noOverflow(page);await page.screenshot({path:testInfo.outputPath('privacy-withdrawn.png'),fullPage:true});
+});
+
+
+test('임시 보호자 로그아웃은 확인과 취소를 제공한다', async ({ page }, testInfo) => {
+  const state = await fixture(page, 'A2'); state.linked = true; state.anonymous = true;
+  await login(page);
+  await expect(page.getByText(/마지막 확인:/)).toBeVisible();
+  await page.getByRole('button', { name: '로그아웃', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '보호자 연결을 나갈까요?' });
+  await expect(dialog).toBeVisible(); expect(state.logouts).toBe(0);
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('guardian-logout-confirm.png'), fullPage: true });
+  await page.getByRole('button', { name: '계속 이용하기' }).click();
+  await expect(dialog).toHaveCount(0); expect(state.logouts).toBe(0);
+  await page.getByRole('button', { name: '로그아웃', exact: true }).click();
+  await page.getByRole('button', { name: '알겠어요, 로그아웃', exact: true }).click();
+  await expect(page.getByRole('button', { name: '가족 초대코드가 있어요' })).toBeVisible();
+  expect(state.logouts).toBe(1);
+});
+
+test('인증 메일 재전송은 주소를 보존하고 실패·대기·접수를 구분한다', async ({ page }, testInfo) => {
+  await page.clock.install();
+  const state = await fixture(page); state.failResend = true;
+  await page.goto('/'); await page.getByRole('button', { name: '이미 계정이 있어요 (로그인)' }).click();
+  await page.getByLabel('이메일', { exact: true }).fill('test@example.invalid');
+  await page.getByRole('button', { name: '인증 메일을 다시 받고 싶어요' }).click();
+  await expect(page.getByLabel('가입한 이메일')).toHaveValue('test@example.invalid');
+  await page.getByRole('button', { name: '인증 메일 다시 요청' }).click();
+  await expect(page.getByRole('alert')).toContainText('잠시 제한');
+  await expect(page.getByRole('button', { name: /초 후 다시 요청/ })).toBeDisabled();
+  expect(state.resends).toBe(1);
+  state.failResend = false;
+  await page.clock.fastForward(61_000);
+  await page.getByRole('button', { name: '인증 메일 다시 요청' }).click();
+  await expect(page.getByRole('status')).toContainText('실제 수신 여부는 메일함');
+  expect(state.resends).toBe(2);
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('email-confirmation.png'), fullPage: true });
+  await page.getByRole('button', { name: '로그인 화면으로' }).click();
+  await expect(page.getByLabel('이메일', { exact: true })).toHaveValue('test@example.invalid');
+});
+
+test('보호자 현황 재조회에서 공유 동의가 없어지면 이전 현황을 감춘다', async ({ page }) => {
+  const state = await fixture(page, 'A2'); state.linked = true; await login(page);
+  await expect(page.getByText('시험 사용자님의 오늘')).toBeVisible();
+  state.shared = false;
+  await page.getByRole('button', { name: '현황 새로고침', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('개인정보 공유 동의를 기다리고');
+  await expect(page.getByText('시험 사용자님의 오늘')).toHaveCount(0);
+  state.shared = true;
+  await page.getByRole('button', { name: '가족 현황 다시 불러오기' }).click();
+  await expect(page.getByText('시험 사용자님의 오늘')).toBeVisible();
 });

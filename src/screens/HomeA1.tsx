@@ -1,3 +1,5 @@
+import { useLatestRead } from '../lib/useLatestRead';
+import { SignOutButton } from '../components/SignOutButton';
 import { useEffect, useState, useCallback } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { useAuth } from '../state/AuthContext';
@@ -12,7 +14,7 @@ const TIP_DATE_KEY = 'denturecare:tip-shown-date';
 
 // A1 홈: 오늘 할 일 (docs/설계/01 A1-1, A1-2 통합 초기 버전)
 export default function HomeA1() {
-  const { session, profile, signOut } = useAuth();
+  const { session, profile } = useAuth();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,21 +27,24 @@ export default function HomeA1() {
   const [tip, setTip] = useState<DailyTip | null>(null);
   const [detail, setDetail] = useState<Routine | null>(null); // 항목 상세(행동 실행) 화면
 
+  const beginRead = useLatestRead(session?.user.id);
   const load = useCallback(async () => {
+    const request = beginRead();
     if (!session) return;
     const uid = session.user.id;
     try {
     const [r, l] = await Promise.all([
-      db().from('routines').select('*').eq('user_id', uid).order('alarm_time'),
-      db().from('routine_logs').select('*').eq('user_id', uid).eq('log_date', todayStr()),
+      db().from('routines').select('*').eq('user_id', uid).order('alarm_time').abortSignal(request.signal),
+      db().from('routine_logs').select('*').eq('user_id', uid).eq('log_date', todayStr()).abortSignal(request.signal),
     ]);
+    if (!request.isCurrent()) return;
     if (r.error || l.error) throw r.error || l.error;
+    setError('');
     setRoutines(((r.data as Routine[]) ?? []).filter((routine) => routine.enabled));
     setLogs((l.data as RoutineLog[]) ?? []);
-    } catch (err) { setError(friendlyError(err)); }
-    finally { setLoading(false); }
-  }, [session]);
-
+    } catch (err) { if (request.isCurrent()) setError(friendlyError(err)); }
+    finally { if (request.isCurrent()) setLoading(false); }
+  }, [session?.user.id, beginRead]);
   useEffect(() => { load(); }, [load]);
   useRefreshOnResume(load);
 
@@ -234,13 +239,7 @@ export default function HomeA1() {
             {profile?.name ? `${profile.name}님, 안녕하세요!` : '안녕하세요!'}
           </h1>
         </div>
-        <button onClick={signOut} style={{
-          background: 'none', color: 'var(--text-sub)', fontSize: 'max(16px, 0.9em)',
-          whiteSpace: 'nowrap', flexShrink: 0,
-          textDecoration: 'underline', minHeight: 48,
-        }}>
-          로그아웃
-        </button>
+        <SignOutButton compact />
       </div>
 
       {/* 오늘 진행률 */}

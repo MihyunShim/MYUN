@@ -22,6 +22,7 @@ function errorSignature(err: unknown): string {
 // 문자열(err.message)과 에러 객체 둘 다 받을 수 있다
 export function friendlyError(err: unknown): string {
   const m = errorSignature(err);
+  if (m.includes('request_timeout')) return '서버 응답이 늦어 확인을 마치지 못했어요. 저장·삭제·요청 중이었다면 반영됐을 수 있으니, 먼저 다시 불러와 확인해주세요.';
   if (err instanceof Error && err.message.startsWith('VOICE_PREPARATION_FAILED: ')) return err.message.slice('VOICE_PREPARATION_FAILED: '.length);
   if (m.includes('voice_preparation_failed')) return '한국어 음성 안내를 준비하지 못했어요. 앱을 켜둔 채 다시 시도하거나 기본 알림음을 선택해주세요.';
   if (m.includes('anonymous_provider_disabled') || m.includes('anonymous sign-ins are disabled')) return '가입 없는 보호자 연결이 아직 서버에서 준비되지 않았어요. 앱 운영자에게 문의해주세요.';
@@ -45,7 +46,6 @@ export function friendlyError(err: unknown): string {
   if (m.includes('pgrst202') || m.includes('delete_own_account') || m.includes('list_my_care_links')) return '이 기능의 서버 업데이트가 아직 준비되지 않았어요. 앱 운영자에게 문의해주세요.';
 
   // 서버에 아예 닿지 못한 경우 (연결 실패 · 서버 일시정지 · 인터넷 끊김)
-  // Supabase 무료 플랜은 7일 미사용 시 프로젝트가 자동 일시정지되어 주소 자체가 사라진다
   if (
     m.includes('fetch') || m.includes('network') || m.includes('load failed') ||
     m.includes('econnrefused') || m.includes('enotfound') || m.includes('dns') ||
@@ -60,7 +60,7 @@ export function friendlyError(err: unknown): string {
   if (m.includes('invalid login credentials')) return '이메일 또는 비밀번호가 맞지 않아요. 다시 확인해주세요.';
   if (m.includes('already') && m.includes('registered')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';
   if (m.includes('email_exists') || m.includes('user_already_exists')) return '이미 가입된 이메일이에요. 로그인을 눌러주세요.';
-  if (m.includes('rate limit')) return '잠시 요청이 많아요. 1시간 후에 다시 시도해주세요.';
+  if (m.includes('rate limit') || m.includes('over_email_send_rate_limit') || m.includes('over_request_rate_limit') || m.includes('429')) return '요청이 많아 잠시 제한됐어요. 조금 기다린 뒤 다시 시도해주세요.';
   if (m.includes('email not confirmed')) return '이메일 확인이 아직 안 됐어요. 메일함을 확인해주세요.';
   if (m.includes('password should be at least')) return '비밀번호는 6자 이상으로 만들어주세요.';
   if (m.includes('valid email')) return '이메일 주소를 다시 확인해주세요.';

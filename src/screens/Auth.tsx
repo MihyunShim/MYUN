@@ -5,6 +5,7 @@ import { db, friendlyError } from '../lib/db';
 import { clearPendingRole } from '../lib/kakao';
 import { Screen, Title, BigButton, ErrorBox } from '../components/ui';
 import { AppInformation } from '../components/AccountActions';
+import { EmailConfirmation } from '../components/EmailConfirmation';
 
 type Mode = 'welcome' | 'guardian' | 'signup' | 'login';
 
@@ -20,6 +21,7 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [needConfirm, setNeedConfirm] = useState(false);
+  const [justRequested, setJustRequested] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const submitting = useRef(false);
   const navigate = (next: Mode) => { setError(''); setShowPassword(false); setPassword(''); setConsent(null); setMode(next); };
@@ -41,7 +43,7 @@ export default function Auth() {
           options: { data: { role, name: name.trim(), privacy: consent } },
         });
         if (err) { setError(friendlyError(err)); return; }
-        if (!data.session) { setNeedConfirm(true); return; } // 이메일 확인이 켜져 있는 경우
+        if (!data.session) { setPassword(''); setJustRequested(true); setNeedConfirm(true); return; }
       } else {
         const { error: err } = await db().auth.signInWithPassword({
           email: email.trim(),
@@ -57,16 +59,9 @@ export default function Auth() {
   };
 
   if (needConfirm) {
-    return (
-      <Screen style={{ justifyContent: 'center' }}>
-        <Title sub="메일함에서 확인 버튼을 누른 뒤, 앱으로 돌아와 로그인해주세요.">
-          📮 이메일을 확인해주세요
-        </Title>
-        <BigButton onClick={() => { setNeedConfirm(false); navigate('login'); }}>
-          로그인 화면으로
-        </BigButton>
-      </Screen>
-    );
+    return <EmailConfirmation initialEmail={email} justRequested={justRequested} onLogin={(value) => {
+      setEmail(value); setNeedConfirm(false); navigate('login');
+    }} />;
   }
 
   if (mode === 'welcome') {
@@ -101,9 +96,9 @@ export default function Auth() {
       } catch (err) { setError(friendlyError(err)); }
       finally { submitting.current = false; setBusy(false); }
     }}>{busy ? '준비 중...' : '가입 없이 초대코드 입력하기'}</BigButton>
-    <BigButton variant="ghost" onClick={() => navigate('login')}>보호자 계정으로 로그인하기</BigButton>
+    <BigButton variant="ghost" disabled={busy} onClick={() => navigate('login')}>보호자 계정으로 로그인하기</BigButton>
     <p>연결 후 오늘의 관리 완료 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없어요.</p>
-    <BigButton variant="ghost" onClick={() => { setGuardianEntry(false); navigate('welcome'); }}>뒤로</BigButton>
+    <BigButton variant="ghost" disabled={busy} onClick={() => { setGuardianEntry(false); navigate('welcome'); }}>뒤로</BigButton>
   </Screen>;
 
   return (
@@ -123,6 +118,7 @@ export default function Auth() {
           {busy ? '잠시만요...' : mode === 'signup' ? '가입하기' : '로그인'}
         </button>
       </form>
+      {mode === 'login' && <BigButton variant="ghost" disabled={busy} onClick={() => { setJustRequested(false); setNeedConfirm(true); }}>인증 메일을 다시 받고 싶어요</BigButton>}
       <BigButton variant="ghost" disabled={busy} onClick={() => navigate(guardianEntry ? 'guardian' : 'welcome')}>뒤로</BigButton>
     </Screen>
   );

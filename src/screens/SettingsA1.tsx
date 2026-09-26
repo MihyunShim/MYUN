@@ -1,3 +1,4 @@
+import { SignOutButton } from '../components/SignOutButton';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { db, friendlyError } from '../lib/db';
@@ -16,7 +17,7 @@ import { AccountActions, AppInformation } from '../components/AccountActions';
 
 // A1 설정 화면 (docs/설계/01 A1-6): 알림, 글자 크기, 알림 시간, 틀니 정보, 초대코드, 로그아웃
 export default function SettingsA1() {
-  const { session, profile, refresh, signOut } = useAuth();
+  const { session, profile, refresh } = useAuth();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState('');
@@ -265,7 +266,7 @@ export default function SettingsA1() {
       <FamilyInviteCard />
       <GuardianRequests elder />
 
-      <BigButton variant="ghost" onClick={signOut}>로그아웃</BigButton>
+      <SignOutButton />
       <AppInformation />
       <AccountActions />
     </Screen>
