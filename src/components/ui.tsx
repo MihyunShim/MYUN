@@ -121,8 +121,9 @@ export function Splash({ text }: { text: string }) {
 }
 
 // Native modal semantics, with a focus/reading-order fallback for older iOS WebViews.
-export function Modal({ children, labelledBy, onClose }: {
+export function Modal({ children, labelledBy, onClose, className = '', initialFocusId }: {
   children: ReactNode; labelledBy: string; onClose: () => void;
+  className?: string; initialFocusId?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const closeAction = useRef(onClose);
@@ -130,9 +131,11 @@ export function Modal({ children, labelledBy, onClose }: {
   useEffect(() => {
     const element = dialog.current!;
     const previousFocus = document.activeElement as HTMLElement | null;
+    const initialFocus = initialFocusId ? document.getElementById(initialFocusId) : null;
     const native = typeof element.showModal === 'function';
     if (native) {
       element.showModal();
+      if (initialFocus) { initialFocus.focus({ preventScroll: true }); element.scrollTop = 0; }
       return () => { if (element.open) element.close(); previousFocus?.focus(); };
     }
     // iOS 13–15.3 does not expose HTMLDialogElement.showModal.
@@ -142,7 +145,7 @@ export function Modal({ children, labelledBy, onClose }: {
     element.setAttribute('open', '');
     element.dataset.fallback = 'true';
     const focusable = () => Array.from(element.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]'));
-    (focusable()[0] ?? element).focus();
+    (initialFocus ?? focusable()[0] ?? element).focus({ preventScroll: true });
     root?.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = 'hidden';
     const trap = (event: KeyboardEvent) => {
@@ -151,9 +154,9 @@ export function Modal({ children, labelledBy, onClose }: {
       const nodes = focusable();
       const first = nodes[0] ?? element;
       const last = nodes[nodes.length - 1] ?? element;
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === element)) {
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === element || document.activeElement === initialFocus)) {
         event.preventDefault(); last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === element)) {
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === element || document.activeElement === initialFocus)) {
         event.preventDefault(); first.focus();
       }
     };
@@ -177,7 +180,7 @@ export function Modal({ children, labelledBy, onClose }: {
     };
   }, []);
   return createPortal(<dialog ref={dialog} role="dialog" aria-modal="true" tabIndex={-1}
-    aria-labelledby={labelledBy} className="care-dialog"
+    aria-labelledby={labelledBy} className={`care-dialog ${className}`}
     onCancel={(event) => { event.preventDefault(); onClose(); }}>
     {children}
   </dialog>, document.body);

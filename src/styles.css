@@ -64,6 +64,12 @@ main:focus { outline: none; }
   font-size: var(--font-body);
 }
 .care-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.care-dialog.signout-dialog[open] { display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+.signout-dialog h2 { flex-shrink: 0; font-size: 1.2em; }
+.signout-explanation { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.signout-explanation p + p { margin-top: 12px; }
+.signout-explanation:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.signout-actions { display: grid; gap: 12px; flex-shrink: 0; }
 .routine-row { display: flex; align-items: center; gap: 12px; }
 .routine-open { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; background: none; color: var(--text); }
 .routine-check { flex-shrink: 0; }

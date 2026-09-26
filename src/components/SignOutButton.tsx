@@ -27,13 +27,17 @@ export function SignOutButton({ compact = false, disabled = false }: { compact?:
       {busy ? '로그아웃 중...' : '로그아웃'}
     </button> : <BigButton variant="ghost" disabled={disabled || busy} onClick={start}>{busy ? '로그아웃 중...' : '로그아웃'}</BigButton>}
     {!confirm && <ErrorBox message={error} />}
-    {confirm && <Modal labelledBy={heading} onClose={() => { if (!busy) setConfirm(false); }}>
-      <h2 id={heading}>보호자 연결을 나갈까요?</h2>
-      <p>이메일 없이 시작한 임시 계정이에요. 로그아웃하면 이 계정으로 다시 로그인할 수 없고, 새 초대코드와 사용자 승인이 필요해요.</p>
-      <p>로그아웃만으로 서버의 계정이나 가족 연결이 삭제되지는 않아요. 삭제하려면 설정의 ‘회원 탈퇴’를 이용해주세요.</p>
-      <ErrorBox message={error} />
-      <BigButton variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>계속 이용하기</BigButton>
-      <BigButton variant="danger" disabled={busy} onClick={() => void logout()}>{busy ? '로그아웃 중...' : '알겠어요, 로그아웃'}</BigButton>
+    {confirm && <Modal labelledBy={heading} initialFocusId={heading} className="signout-dialog" onClose={() => { if (!busy) setConfirm(false); }}>
+      <h2 id={heading} tabIndex={-1}>로그아웃할까요?</h2>
+      <div className="signout-explanation" tabIndex={0} role="region" aria-label="로그아웃 전 확인">
+        <p>이메일 없이 시작한 임시 계정이에요. 다시 이용하려면 새 초대코드와 사용자 승인이 필요해요.</p>
+        <p>로그아웃해도 서버의 계정·가족 연결은 남아요. 삭제는 설정의 ‘회원 탈퇴’에서 해주세요.</p>
+        <ErrorBox message={error} />
+      </div>
+      <div className="signout-actions">
+        <BigButton variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>계속 이용하기</BigButton>
+        <BigButton variant="danger" disabled={busy} onClick={() => void logout()}>{busy ? '로그아웃 중...' : '알겠어요, 로그아웃'}</BigButton>
+      </div>
     </Modal>}
   </>;
 }

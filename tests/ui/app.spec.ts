@@ -391,8 +391,11 @@ test('임시 보호자 로그아웃은 확인과 취소를 제공한다', async 
   await login(page);
   await expect(page.getByText(/마지막 확인:/)).toBeVisible();
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '보호자 연결을 나갈까요?' });
+  const dialog = page.getByRole('dialog', { name: '로그아웃할까요?' });
   await expect(dialog).toBeVisible(); expect(state.logouts).toBe(0);
+  await expect(dialog.getByRole('heading', { name: '로그아웃할까요?' })).toBeInViewport({ ratio: 1 });
+  await expect(dialog.getByRole('button', { name: '계속 이용하기' })).toBeInViewport({ ratio: 1 });
+  await expect(dialog.getByRole('button', { name: '알겠어요, 로그아웃' })).toBeInViewport({ ratio: 1 });
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('guardian-logout-confirm.png'), fullPage: true });
   await page.getByRole('button', { name: '계속 이용하기' }).click();

@@ -10,7 +10,7 @@ afterEach(cleanup);
 it('홈의 임시 보호자 로그아웃도 확인하며 취소 시 연결을 유지한다', () => {
   render(<SignOutButton compact />);
   fireEvent.click(screen.getByText('로그아웃'));
-  expect(screen.getByRole('dialog', { name: '보호자 연결을 나갈까요?' })).toBeTruthy();
+  expect(screen.getByRole('dialog', { name: '로그아웃할까요?' })).toBeTruthy();
   expect(mocks.signOut).not.toHaveBeenCalled();
   fireEvent.click(screen.getByText('계속 이용하기'));
   expect(screen.queryByRole('dialog')).toBeNull(); expect(mocks.signOut).not.toHaveBeenCalled();
