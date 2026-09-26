@@ -37,3 +37,66 @@ button {
   border: none;
   border-radius: 12px;
 }
+
+input, button, a { -webkit-tap-highlight-color: transparent; }
+input, select { min-width: 0; max-width: 100%; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+button:disabled { cursor: default; }
+
+/* Respect the app's large-text preference for controls and allow narrow screens to wrap. */
+button, input, select { font-family: inherit; line-height: 1.5; }
+p, h1, h2, h3, button, label, summary { overflow-wrap: anywhere; }
+main:focus { outline: none; }
+.care-dialog {
+  margin: auto;
+  width: calc(100% - 32px);
+  max-width: 420px;
+  max-height: calc(100dvh - 48px);
+  padding: 24px;
+  border: 0;
+  border-radius: 20px;
+  color: var(--text);
+  background: var(--surface);
+  overflow-y: auto;
+  font-size: var(--font-body);
+}
+.care-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.care-dialog.signout-dialog[open] { display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+.signout-dialog h2 { flex-shrink: 0; font-size: 1.2em; }
+.signout-explanation { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.signout-explanation p + p { margin-top: 12px; }
+.signout-explanation:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.signout-actions { display: grid; gap: 12px; flex-shrink: 0; }
+.routine-row { display: flex; align-items: center; gap: 12px; }
+.routine-open { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; background: none; color: var(--text); }
+.routine-check { flex-shrink: 0; }
+@media (max-width: 360px) {
+  .routine-row { flex-wrap: wrap; }
+  .routine-open { flex-basis: 100%; }
+  .routine-check { width: 100%; }
+}
+
+.care-dialog[data-fallback="true"] {
+  display: block;
+  position: fixed;
+  top: 50%; left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  max-height: calc(100vh - 48px);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+}
+
+.privacy-fieldset { min-width: 0; border: 2px solid var(--border); border-radius: 12px; padding: 16px; }
+.privacy-fieldset legend { font-weight: 800; padding: 0 4px; }
+.privacy-details { margin: 12px 0; overflow-wrap: anywhere; }
+.privacy-details div { margin: 8px 0; }
+.privacy-details dt { font-weight: 700; }
+.privacy-details dd { margin: 4px 0 0; }
+.privacy-copy { overflow-wrap: anywhere; }
+.privacy-copy section { margin: 20px 0; }
+.privacy-copy h3 { font-size: 1.05em; }
+summary { cursor: pointer; min-height: 48px; padding: 12px 0; font-weight: 700; }

@@ -54,18 +54,15 @@ export const DEFAULT_ROUTINES: {
   action: string;
   tool: string;
 }[] = [
-  { slot: 'A00', time: '07:00', label: '기상 후', action: '입을 헹구고 틀니를 끼우세요', tool: '미온수' },
-  { slot: 'A01', time: '08:00', label: '아침 식후', action: '주방세제로 1분간 솔질하세요', tool: '주방세제 (연마제 X)' },
-  { slot: 'A02', time: '12:30', label: '점심 식후', action: '주방세제로 1분간 솔질하세요', tool: '주방세제 (연마제 X)' },
-  { slot: 'A03', time: '19:00', label: '저녁 식후', action: '주방세제로 1분간 솔질하세요', tool: '주방세제 (연마제 X)' },
-  { slot: 'A04', time: '22:30', label: '취침 전', action: '틀니를 찬물 통에 담그세요', tool: '찬물 (25℃ 이하) · 완전히 잠기게' },
+  { slot: 'A00', time: '07:00', label: '기상 후', action: '입안과 틀니를 깨끗이 한 뒤 끼우세요', tool: '부드러운 칫솔 · 치과에서 안내한 방법' },
+  { slot: 'A01', time: '08:00', label: '아침 식후', action: '식후 틀니를 빼고 음식물을 헹궈내세요', tool: '깨끗한 물 · 뜨거운 물은 피하세요' },
+  { slot: 'A02', time: '12:30', label: '점심 식후', action: '식후 틀니를 빼고 음식물을 헹궈내세요', tool: '깨끗한 물 · 뜨거운 물은 피하세요' },
+  { slot: 'A03', time: '19:00', label: '저녁 식후', action: '식후 틀니를 빼고 음식물을 헹궈내세요', tool: '깨끗한 물 · 뜨거운 물은 피하세요' },
+  { slot: 'A04', time: '22:30', label: '취침 전', action: '틀니를 닦고 빼서 보관하세요', tool: '부드러운 솔 · 틀니용 세정제 · 치과 안내 우선' },
 ];
 
 export const SLOT_DETAIL: Record<SlotId, { action: string; tool: string }> = Object.fromEntries(
   DEFAULT_ROUTINES.map((r) => [r.slot, { action: r.action, tool: r.tool }]),
 ) as Record<SlotId, { action: string; tool: string }>;
 
-export function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+export { localDateString as todayStr } from './dates';

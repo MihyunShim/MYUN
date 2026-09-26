@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createBoundedFetch } from './boundedFetch';
 
 // 접속 정보는 .env 파일에서 읽음 (.env.example 참고)
 // VITE_SUPABASE_ANON_KEY는 "공개용 열쇠"라 앱에 포함돼도 안전 —
@@ -9,5 +10,5 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
 export const supabase = isSupabaseConfigured
-  ? createClient(url!, anonKey!)
+  ? createClient(url!, anonKey!, { global: { fetch: createBoundedFetch((...args) => fetch(...args)) } })
   : null;
