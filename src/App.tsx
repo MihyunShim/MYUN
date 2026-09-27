@@ -10,7 +10,7 @@ import { Screen, Title, Splash } from './components/ui';
 
 // 화면 라우팅: 로그인 여부 → 역할 → 온보딩 여부에 따라 보여줄 화면 결정 (docs/설계/01 흐름도)
 function Router() {
-  const { loading, session, profile, onboarded } = useAuth();
+  const { loading, session, profile, onboarded, passwordRecovery } = useAuth();
 
   // 설정의 글자 크기를 앱 전체에 반영 (고령자 접근성)
   useEffect(() => {
@@ -21,6 +21,7 @@ function Router() {
   }, [profile?.font_size_mode]);
 
   if (loading) return <Splash text="저장된 정보를 불러오는 중..." />;
+  if (passwordRecovery) return <Auth initialMode="updatePassword" />;
   if (!session) return <Auth />;
   if (!profile) return <Splash text="프로필을 준비하는 중..." />;
 

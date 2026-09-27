@@ -11,6 +11,8 @@ interface AuthState {
   profile: Profile | null;
   onboarded: boolean; // A1: 루틴 설정 완료 / A2: 어르신 연결 완료
   elderId: string | null; // A2 전용: 연결된 어르신의 id
+  passwordRecovery: boolean; // 비밀번호 재설정 링크로 들어온 상태
+  finishPasswordRecovery: () => void;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [onboarded, setOnboarded] = useState(false);
   const [elderId, setElderId] = useState<string | null>(null);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   const loadUserData = useCallback(async (s: Session | null) => {
     if (!s) {
@@ -66,7 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh().finally(() => setLoading(false));
-    const { data: sub } = db().auth.onAuthStateChange(async (_event, s) => {
+    const { data: sub } = db().auth.onAuthStateChange(async (event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
       setSession(s);
       await loadUserData(s);
     });
@@ -77,8 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await db().auth.signOut();
   }, []);
 
+  const finishPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);
+
   return (
-    <AuthContext.Provider value={{ loading, session, profile, onboarded, elderId, refresh, signOut }}>
+    <AuthContext.Provider value={{
+      loading, session, profile, onboarded, elderId, passwordRecovery,
+      finishPasswordRecovery, refresh, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

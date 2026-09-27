@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { db, friendlyError } from '../lib/db';
 import { kakaoLogin, rememberPendingRole } from '../lib/kakao';
+import { useAuth } from '../state/AuthContext';
 import { Screen, Title, Card, BigButton, Field, ErrorBox } from '../components/ui';
 
-type Mode = 'welcome' | 'role' | 'signup' | 'login';
+type Mode = 'welcome' | 'role' | 'signup' | 'login' | 'resetRequest' | 'updatePassword';
 
 // 회원가입/로그인 (docs/설계/01 A1-0, A2-0 진입부)
-export default function Auth() {
-  const [mode, setMode] = useState<Mode>('welcome');
+export default function Auth({ initialMode = 'welcome' }: { initialMode?: Mode }) {
+  const { finishPasswordRecovery } = useAuth();
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [role, setRole] = useState<'A1' | 'A2'>('A1');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -15,6 +17,7 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [needConfirm, setNeedConfirm] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const submit = async () => {
     setError('');
@@ -36,6 +39,37 @@ export default function Auth() {
         });
         if (err) { setError(friendlyError(err)); return; }
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestPasswordReset = async () => {
+    setError('');
+    setNotice('');
+    setBusy(true);
+    try {
+      const { error: err } = await db().auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin,
+      });
+      if (err) { setError(friendlyError(err)); return; }
+      setNotice('비밀번호를 바꾸는 링크를 이메일로 보냈어요. 메일함을 확인해주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updatePassword = async () => {
+    setError('');
+    if (password.length < 6) {
+      setError('새 비밀번호는 6자 이상으로 만들어주세요.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error: err } = await db().auth.updateUser({ password });
+      if (err) { setError(friendlyError(err)); return; }
+      finishPasswordRecovery();
     } finally {
       setBusy(false);
     }
@@ -67,6 +101,42 @@ export default function Auth() {
         </Title>
         <BigButton onClick={() => { setNeedConfirm(false); setMode('login'); }}>
           로그인 화면으로
+        </BigButton>
+      </Screen>
+    );
+  }
+
+  if (mode === 'resetRequest') {
+    return (
+      <Screen style={{ justifyContent: 'center' }}>
+        <Title sub="가입할 때 쓴 이메일로 비밀번호 변경 링크를 보내드려요.">
+          비밀번호를 잊으셨나요?
+        </Title>
+        <Field label="이메일" value={email} onChange={setEmail} type="email" inputMode="email" placeholder="예) soonja@naver.com" />
+        <ErrorBox message={error} />
+        {notice && (
+          <Card style={{ background: '#F0FDF4', borderColor: 'var(--success)' }}>
+            <p style={{ color: 'var(--success)', fontWeight: 700 }}>✉️ {notice}</p>
+          </Card>
+        )}
+        <BigButton onClick={requestPasswordReset} disabled={busy || !email}>
+          {busy ? '보내는 중...' : '변경 링크 받기'}
+        </BigButton>
+        <BigButton variant="ghost" onClick={() => setMode('login')}>로그인으로 돌아가기</BigButton>
+      </Screen>
+    );
+  }
+
+  if (mode === 'updatePassword') {
+    return (
+      <Screen style={{ justifyContent: 'center' }}>
+        <Title sub="앞으로 로그인할 때 사용할 새 비밀번호를 입력해주세요.">
+          새 비밀번호 만들기
+        </Title>
+        <Field label="새 비밀번호" value={password} onChange={setPassword} type="password" placeholder="6자 이상" />
+        <ErrorBox message={error} />
+        <BigButton onClick={updatePassword} disabled={busy || !password}>
+          {busy ? '바꾸는 중...' : '비밀번호 바꾸기'}
         </BigButton>
       </Screen>
     );
@@ -117,6 +187,14 @@ export default function Auth() {
       <BigButton onClick={submit} disabled={busy || !email || !password}>
         {busy ? '잠시만요...' : mode === 'signup' ? '가입하기' : '로그인'}
       </BigButton>
+      {mode === 'login' && (
+        <button onClick={() => { setError(''); setMode('resetRequest'); }} style={{
+          alignSelf: 'center', minHeight: 44, padding: '0 12px', background: 'none',
+          color: 'var(--primary)', fontSize: 16, fontWeight: 700, textDecoration: 'underline',
+        }}>
+          비밀번호를 잊으셨나요?
+        </button>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         <span style={{ color: 'var(--text-sub)', fontSize: 15 }}>또는</span>
