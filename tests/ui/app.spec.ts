@@ -241,10 +241,11 @@ test('보호자는 잘못된 코드 재시도 후 연결·현황 조회·해제�
   await page.goto('/');
   await page.getByRole('button', { name: '가족 초대코드가 있어요' }).click();
   await noOverflow(page);
-  await page.getByLabel('보호자 이름').fill('시험 가족');
   await page.getByLabel('만 14세 이상이에요').check();
   await page.getByLabel('[필수] 개인정보 수집·이용에 동의해요').check();
   await page.getByLabel('[필수] 개인정보 국외 이전에 동의해요').check();
+  await page.getByRole('button', { name: '동의하고 다음으로' }).click();
+  await page.getByLabel('보호자 이름').fill('시험 가족');
   await page.getByRole('button', { name: '가입 없이 초대코드 입력하기' }).click();
   await expect(page.getByText(/보호자 준비가 완료됐어요/)).toBeVisible();
   await noOverflow(page);
@@ -351,19 +352,21 @@ test('첫 화면은 본인 가입과 보호자 경로를 구분하고 도움말�
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('welcome-help.png'), fullPage: true });
   await page.getByRole('button', { name: '틀니 사용자로 회원가입' }).click();
-  await expect(page.getByRole('heading', { name: '틀니 사용자 회원가입' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '가입 전 개인정보 안내' })).toBeVisible();
   await page.evaluate(() => { Object.defineProperty(navigator, 'onLine', { configurable: true, value: false }); window.dispatchEvent(new Event('offline')); });
   await expect(page.getByRole('status').filter({hasText:'인터넷이 연결되지 않았어요'})).toContainText('인터넷이 연결되지 않았어요');
 });
 
 test('가입은 필수 동의를 요구하고 건강정보 동의를 선택하지 않아도 계정을 만든다',async({page},testInfo)=>{
  const state=await fixture(page);await page.goto('/');await page.getByRole('button',{name:'틀니 사용자로 회원가입'}).click();
- await page.getByLabel('이름',{exact:true}).fill('시험 사용자');await page.getByLabel('이메일').fill('test@example.invalid');await page.getByLabel('비밀번호',{exact:true}).fill('fixture-password');
- await expect(page.getByRole('button',{name:'가입하기',exact:true})).toBeDisabled();
+ await expect(page.getByLabel('이메일')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'동의하고 다음으로',exact:true})).toBeDisabled();
  await expect(page.getByRole('checkbox')).toHaveCount(4);
  for(const label of ['만 14세 이상이에요','[필수] 개인정보 수집·이용에 동의해요','[필수] 개인정보 국외 이전에 동의해요'])await page.getByLabel(label).check();
  await expect(page.getByLabel('[선택] 건강정보(민감정보) 처리에 동의해요')).not.toBeChecked();
  await noOverflow(page);await page.screenshot({path:testInfo.outputPath('signup-privacy.png'),fullPage:true});
+ await page.getByRole('button',{name:'동의하고 다음으로'}).click();
+ await page.getByLabel('이름',{exact:true}).fill('시험 사용자');await page.getByLabel('이메일').fill('test@example.invalid');await page.getByLabel('비밀번호',{exact:true}).fill('fixture-password');
  await page.getByRole('button',{name:'가입하기',exact:true}).click();
  await expect(page.getByRole('heading',{name:'개인정보 안내를 확인해주세요'})).toBeVisible();expect(state.signupCalls).toBe(1);
  expect(state.privacyChoices).toMatchObject({personal:true,sensitive:false,overseas:true,age14:true,version:privacyNotice.version});
@@ -372,7 +375,7 @@ test('가입은 필수 동의를 요구하고 건강정보 동의를 선택하�
 test('안내 미게시 시 신규 가입을 막고 기존 사용자는 개인정보 권리를 행사할 수 있다',async({page})=>{
  const state=await fixture(page);state.notice=false;state.consent=false;await page.goto('/');
  await page.getByRole('button',{name:'틀니 사용자로 회원가입'}).click();await expect(page.getByText('개인정보 안내를 준비 중이에요. 준비가 끝나면 가입할 수 있어요.')).toBeVisible();
- await expect(page.getByRole('button',{name:'가입하기',exact:true})).toBeDisabled();expect(state.signupCalls).toBe(0);
+ await expect(page.getByRole('button',{name:'동의하고 다음으로',exact:true})).toBeDisabled();expect(state.signupCalls).toBe(0);
  await login(page);await expect(page.getByRole('heading',{name:'개인정보 안내를 확인해주세요'})).toBeVisible();
  await page.getByRole('button',{name:'동의 내역·권리 요청 확인'}).click();await page.getByRole('button',{name:'개인정보 열람 요청',exact:true}).click();
  await expect(page.getByText('개인정보 열람 요청을 접수했어요.')).toBeVisible();expect(state.privacyRequests).toHaveLength(1);await noOverflow(page);

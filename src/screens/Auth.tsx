@@ -13,6 +13,7 @@ type Mode = 'welcome' | 'guardian' | 'signup' | 'login';
 // 회원가입/로그인 (docs/설계/01 A1-0, A2-0 진입부)
 export default function Auth() {
   const [consent, setConsent] = useState<(ConsentChoices & {version:string}) | null>(null);
+  const [consentStepDone, setConsentStepDone] = useState(false);
   const [mode, setMode] = useState<Mode>('welcome');
   const [guardianEntry, setGuardianEntry] = useState(false);
   const [role, setRole] = useState<'A1' | 'A2'>('A1');
@@ -25,7 +26,7 @@ export default function Auth() {
   const [justRequested, setJustRequested] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const submitting = useRef(false);
-  const navigate = (next: Mode) => { setError(''); setShowPassword(false); setPassword(''); setConsent(null); setMode(next); };
+  const navigate = (next: Mode) => { setError(''); setShowPassword(false); setPassword(''); setConsent(null); setConsentStepDone(false); setMode(next); };
 
   const submit = async () => {
     if (submitting.current) return;
@@ -80,13 +81,25 @@ export default function Auth() {
     );
   }
 
+  if ((mode === 'signup' || mode === 'guardian') && !consentStepDone) return <Screen>
+    <Title sub="1단계 · 내용을 읽고 동의 항목을 선택해주세요.">가입 전 개인정보 안내</Title>
+    <p>필수 항목에 동의한 다음 이름과 계정 정보를 입력해요. 아직 계정은 만들어지지 않아요.</p>
+    <SignupConsent role={role} disabled={busy} onChange={setConsent} />
+    <BigButton disabled={!consent || busy} onClick={() => { if (consent) { setConsentStepDone(true); window.scrollTo(0, 0); } }}>동의하고 다음으로</BigButton>
+    {guardianEntry && <BigButton variant="ghost" onClick={() => navigate('login')}>보호자 계정으로 로그인하기</BigButton>}
+    <BigButton variant="ghost" onClick={() => navigate('welcome')}>취소</BigButton>
+  </Screen>;
+
+  const consentSummary = <div><p>개인정보 필수 동의를 확인했어요. 안내 버전: {consent?.version}</p>
+    <BigButton variant="ghost" disabled={busy} onClick={() => { setConsent(null); setConsentStepDone(false); }}>동의 내용 다시 확인</BigButton></div>;
+
   if (mode === 'guardian') return <Screen>
     <Title sub="이메일·비밀번호 없이 시작해요.">초대받은 가족·보호자</Title>
     <p>{Capacitor.isNativePlatform() ? '앱 또는 틀니케어 웹 서비스에서 연결할 수 있어요.' : '앱 설치 없이 이 웹 서비스에서 연결할 수 있어요.'}</p>
     <p>① 이름·개인정보 동의 → ② 초대코드로 연결 요청 → ③ 사용자 승인 후 현황 확인</p>
     <AuthInput label="보호자 이름" name="guardian-name" autoComplete="name" value={name} onChange={setName} disabled={busy} placeholder="사용자가 알아볼 수 있는 내 이름" />
     <p>이메일 회원가입 대신 보호자용 임시 계정이 만들어져요. 이름과 연결 정보는 서버에, 로그인 정보는 이 기기에 저장돼요. 로그아웃하거나 브라우저·앱 데이터를 지우거나 다른 브라우저·기기로 바꾸면 다시 초대받아야 해요.</p>
-    <SignupConsent role="A2" disabled={busy} onChange={setConsent} />
+    {consentSummary}
     <ErrorBox message={error} />
     <BigButton disabled={busy || !name.trim() || !consent} onClick={async () => {
       if (submitting.current || !consent) return;
@@ -114,7 +127,7 @@ export default function Auth() {
         <button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} style={{ minHeight: 48, color: 'var(--primary)', background: 'var(--primary-light)', fontSize: 'inherit' }}>
           {showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
         </button>
-        {mode === 'signup' && <SignupConsent role={role} disabled={busy} onChange={setConsent} />}
+        {mode === 'signup' && consentSummary}
         <ErrorBox message={error} />
         <button type="submit" disabled={busy || !email.trim() || !password || (mode === 'signup' && !consent)} style={{ minHeight: 56, fontSize: 19, fontWeight: 700, color: '#fff', background: 'var(--primary)' }}>
           {busy ? '잠시만요...' : mode === 'signup' ? '가입하기' : '로그인'}
