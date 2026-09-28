@@ -4,7 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor, act } from '@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import OnboardingA2 from '../../src/screens/OnboardingA2';
 import { FamilyInviteCard } from '../../src/components/FamilyInviteCard';
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), refresh: vi.fn(), copy: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), refresh: vi.fn(), copy: vi.fn(), native: vi.fn(), share: vi.fn() }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: mocks.native } }));
 vi.mock('../../src/lib/db', () => ({ db: () => ({ rpc: mocks.rpc }), friendlyError: () => '최신 코드를 확인해주세요' }));
 vi.mock('../../src/state/AuthContext', () => ({ useAuth: () => ({ profile: { invite_code: 'ABC123' }, refresh: mocks.refresh, signOut: vi.fn() }) }));
 vi.mock('../../src/components/GuardianRequests', async () => {
@@ -16,7 +17,7 @@ vi.mock('../../src/components/GuardianRequests', async () => {
 });
 vi.mock('../../src/lib/privacy',async()=>{const actual=await vi.importActual<typeof import('../../src/lib/privacy')>('../../src/lib/privacy');return {...actual,usePrivacyNotice:()=>({notice,error:'',loading:false})};});
 vi.mock('../../src/screens/AccountScreen', () => ({ default: () => null }));
-beforeEach(() => { vi.resetAllMocks(); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.copy } }); });
+beforeEach(() => { vi.resetAllMocks(); mocks.native.mockReturnValue(false); Object.defineProperty(navigator, 'share', { configurable: true, value: undefined }); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.copy } }); });
 afterEach(cleanup);
 it('정규화한 코드로 한 번만 연결하고 완료 확인 후 현황을 연다', async () => {
   let finish!: (value: unknown) => void;
@@ -53,4 +54,32 @@ it('클립보드 접근 실패 시 직접 복사 방법을 안내한다', async 
   mocks.copy.mockRejectedValue(new Error('denied'));
   render(<FamilyInviteCard />); fireEvent.click(screen.getByText('초대코드 복사'));
   await waitFor(() => expect(screen.getByRole('status').textContent).toContain('길게 눌러'));
+});
+
+it('웹 공유 미지원 시 설치 없는 안내를 복사한다', async () => {
+  mocks.copy.mockResolvedValue(undefined);
+  render(<FamilyInviteCard />);
+  fireEvent.click(screen.getByText('가족 초대 보내기'));
+  await screen.findByText('초대 내용을 복사했어요. 카카오톡에 붙여넣어 보내주세요.');
+  expect(mocks.copy).toHaveBeenCalledWith(expect.stringContaining('웹에서는 앱 설치 없이 이용할 수 있어요.'));
+  expect(mocks.copy).toHaveBeenCalledWith(expect.stringContaining('같은 틀니케어 웹 서비스'));
+});
+it('네이티브 공유 취소 후 재시도할 수 있다', async () => {
+  mocks.native.mockReturnValue(true);
+  Object.defineProperty(navigator, 'share', { configurable: true, value: mocks.share });
+  mocks.share.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError')).mockResolvedValueOnce(undefined);
+  render(<FamilyInviteCard />);
+  fireEvent.click(screen.getByText('가족 초대 보내기'));
+  await screen.findByText('공유를 취소했어요. 다시 보내거나 초대코드를 직접 전달할 수 있어요.');
+  fireEvent.click(screen.getByText('가족 초대 보내기'));
+  await waitFor(() => expect(mocks.share).toHaveBeenCalledTimes(2));
+  expect(mocks.share).toHaveBeenLastCalledWith(expect.objectContaining({ text: expect.stringContaining('앱 또는 웹 서비스') }));
+});
+it('공유와 복사 모두 미지원이어도 코드를 직접 전달할 수 있다', async () => {
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+  render(<FamilyInviteCard />);
+  fireEvent.click(screen.getByText('가족 초대 보내기'));
+  await screen.findByText('공유창을 열지 못했어요. 위의 6자리 코드를 직접 알려주거나 초대코드 복사를 눌러주세요.');
+  expect(screen.getByLabelText('가족 초대코드 ABC123')).toBeTruthy();
+  expect((screen.getByText('가족 초대 보내기') as HTMLButtonElement).disabled).toBe(false);
 });

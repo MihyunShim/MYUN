@@ -112,3 +112,9 @@ it('다른 사용자의 건강정보 동의 상태를 공개 함수로 탐색할
  expect((await user(stranger,'select public.has_processing_consent($1,true) as allowed',[elder])).rows[0].allowed).toBe(false);
  await expect(user(stranger,'select public.private_has_processing_consent($1,true)',[elder])).rejects.toThrow(/permission denied/);
 });
+
+it('읽기 전용 서버 점검 SQL의 모든 기능이 최신 마이그레이션에 존재한다', async () => {
+ const result = await pg.query(readFileSync('db/check_readiness.sql', 'utf8'));
+ expect(result.rows).toHaveLength(1);
+ expect(Object.values(result.rows[0] as Record<string, unknown>).every(value => value === true)).toBe(true);
+});

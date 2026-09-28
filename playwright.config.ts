@@ -13,7 +13,9 @@ export default defineConfig({
     { name: 'webkit-iphone', use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
-    command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4173 --strictPort',
+    command: process.env.UI_PREVIEW === '1'
+      ? 'npm run build && node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort'
+      : 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: false,
     env: { VITE_SUPABASE_URL: 'https://denturecare-test.supabase.co', VITE_SUPABASE_ANON_KEY: 'sb_publishable_test_fixture_only' },

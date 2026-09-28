@@ -100,3 +100,9 @@ main:focus { outline: none; }
 .privacy-copy section { margin: 20px 0; }
 .privacy-copy h3 { font-size: 1.05em; }
 summary { cursor: pointer; min-height: 48px; padding: 12px 0; font-weight: 700; }
+
+.public-privacy { display: grid; gap: 20px; min-width: 0; }
+.public-privacy h2 { font-size: 1.15em; }
+.privacy-home { display: inline-flex; align-items: center; min-height: 48px; color: var(--primary); }
+.privacy-contact { overflow-wrap: anywhere; }
+.public-privacy a { overflow-wrap: anywhere; }

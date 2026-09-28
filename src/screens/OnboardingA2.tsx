@@ -48,13 +48,13 @@ export default function OnboardingA2() {
   if (accountOpen) return <AccountScreen onBack={() => setAccountOpen(false)} />;
   return (
     <Screen>
-      <Title sub="틀니 사용자 앱의 설정 → 가족 초대코드에서 6자리 코드를 확인해주세요">
+      <Title sub="틀니 사용자의 웹·앱 설정 → 가족 초대코드에서 6자리 코드를 확인해주세요">
         {linked ? '연결 요청을 보냈어요' : pending ? '승인을 기다리고 있어요' : '💗 초대코드로 가족 연결'}
       </Title>
 
       <p>보호자 준비가 완료됐어요. 아래에 초대코드를 입력하고 ‘연결 요청하기’를 눌러주세요. 사용자가 승인하면 오늘의 관리 현황, 지난 7일 리포트, 다음 검진일과 도움 요청을 볼 수 있어요. 관리 기록을 대신 수정할 수는 없으며, 연결은 양쪽 설정에서 해제할 수 있어요.</p>
       <GuardianRequests reloadKey={linked ? 1 : 0} onPendingChange={onPendingChange} />
-      {pending && <p>사용자 앱의 설정 → 보호자 연결 요청에서 승인하면 가족 현황을 볼 수 있어요. 다른 코드로 요청하려면 먼저 현재 요청을 취소해주세요.</p>}
+      {pending && <p>사용자의 웹·앱 설정 → 보호자 연결 요청에서 승인하면 가족 현황을 볼 수 있어요. 다른 코드로 요청하려면 먼저 현재 요청을 취소해주세요.</p>}
       {checked && !pending && <form onSubmit={(event) => { event.preventDefault(); void link(); }} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0, gap: 16 }}>
       <label style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 8 }}>
         <span style={{ fontWeight: 700 }}>초대코드 (6자리)</span>

@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { useRef, useState } from 'react';
 import { SignupConsent } from '../components/PrivacyConsent';
 import type { ConsentChoices } from '../lib/privacy';
@@ -81,9 +82,10 @@ export default function Auth() {
 
   if (mode === 'guardian') return <Screen>
     <Title sub="이메일·비밀번호 없이 시작해요.">초대받은 가족·보호자</Title>
+    <p>{Capacitor.isNativePlatform() ? '앱 또는 틀니케어 웹 서비스에서 연결할 수 있어요.' : '앱 설치 없이 이 웹 서비스에서 연결할 수 있어요.'}</p>
     <p>① 이름·개인정보 동의 → ② 초대코드로 연결 요청 → ③ 사용자 승인 후 현황 확인</p>
     <AuthInput label="보호자 이름" name="guardian-name" autoComplete="name" value={name} onChange={setName} disabled={busy} placeholder="사용자가 알아볼 수 있는 내 이름" />
-    <p>이메일 회원가입 대신 보호자용 임시 계정이 만들어져요. 이름과 연결 정보는 서버에, 로그인 정보는 이 기기에 저장돼요. 로그아웃하거나 앱 데이터를 지우거나 휴대폰을 바꾸면 다시 초대받아야 해요.</p>
+    <p>이메일 회원가입 대신 보호자용 임시 계정이 만들어져요. 이름과 연결 정보는 서버에, 로그인 정보는 이 기기에 저장돼요. 로그아웃하거나 브라우저·앱 데이터를 지우거나 다른 브라우저·기기로 바꾸면 다시 초대받아야 해요.</p>
     <SignupConsent role="A2" disabled={busy} onChange={setConsent} />
     <ErrorBox message={error} />
     <BigButton disabled={busy || !name.trim() || !consent} onClick={async () => {

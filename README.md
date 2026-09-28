@@ -98,7 +98,11 @@ npm run dev
 
 데이터베이스는 `db/migrations/`의 적용 순서를 [설치 안내](README_설치방법.md)에서 확인하세요. 기존 DB에 `001`을 다시 실행하지 않습니다. 계정 관리에는 `004_account_safety.sql`, 검진일 기록에는 `005_checkup_schedule.sql`이 필요합니다.
 
-검증: `npm run verify` · Mac에서 Xcode 열기: `npm run ios:run`. 현재 소스는 `src/`이며 `app/`은 이전 프로토타입입니다.
+검증: `npm run verify` · Mac에서 Xcode 열기: `npm run ios:run`. 현재 소스는 `src/`이며 `app/`은 이전 프로토타입입니다. 배포용 manifest·아이콘은 `public/`에 있습니다.
+
+실제 서버 연결 준비: [브라우저 가족 연결 검수 안내](SERVER_SETUP_GUIDE.md). 공개 설정을 읽기만 하는 점검 명령은 `npm run server:check`입니다.
+
+화면 회귀 검사: `npm run test:ui`. 배포 빌드로 검사: `UI_PREVIEW=1 npm run test:ui`. 두 검사는 모의 Supabase를 사용하며, 배포 빌드 검사는 테스트용 설정으로 `dist/`를 다시 만듭니다. 실제 배포·iOS 동기화 전에는 해당 환경에서 `npm run build`를 다시 실행하세요.
 
 ---
 
@@ -121,3 +125,9 @@ npm run dev
 **심미현** — 치과위생사 (7년차) · 치위생학과 전공심화 과정
 
 임상 경험에서 출발해 기획 · 설계 · 개발 · 배포까지 직접 진행한 프로젝트입니다.
+
+## 로그인 없는 개인정보 안내
+
+웹의 `/privacy`와 `/privacy/`에서 서버에 게시된 현재 안내를 읽을 수 있습니다. 이 화면은 로그인 세션을 읽거나 갱신하지 않으며 공개 `get_privacy_notice` 함수만 호출합니다. 앱의 동의 화면과 같은 내용·버전을 표시합니다. 설정에서 별도 정책 URL이 없으면 이 페이지로 연결됩니다.
+
+서버에 안내가 없으면 준비 중 상태를 표시하며 임시 문서를 방침으로 표시하지 않습니다. 네트워크 오류에는 다시 불러오기를 제공합니다. 이 경로를 추가하는 것만으로 정책이 게시되거나 신규 가입이 활성화되지는 않습니다. 기존 `privacy:prepare`의 버전별 문서·SQL 생성과 운영 사실 검토는 계속 필요합니다. 실제 배포 후 HTTPS 주소를 확인한 다음 정책 URL 설정에 반영하세요.

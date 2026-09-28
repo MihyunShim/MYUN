@@ -15,7 +15,7 @@ export function AppInformation() {
     <p style={{ marginBottom: 8 }}>설치 버전: {import.meta.env.VITE_BUILD_LABEL || '개발 환경'}</p>
     <p>틀니케어는 일상 관리와 기록을 도와드려요. 진단이나 응급 연락 서비스는 아니에요. 불편한 증상과 검진 일정은 담당 치과에 확인해주세요.</p>
     <p style={{ marginTop: 8 }}>계정·틀니 정보와 관리 기록은 서버에 저장돼요. 초대코드로 요청하고 본인이 승인한 가족은 관리 현황과 도움 요청을 볼 수 있어요. 연결은 언제든 해제할 수 있어요.</p>
-    {policy?.startsWith('https://') && <p style={{ marginTop: 12 }}><a href={policy} target="_blank" rel="noopener noreferrer">개인정보처리방침</a></p>}
+    <p style={{ marginTop: 12 }}><a href={policy?.startsWith('https://') ? policy : '/privacy'} target="_blank" rel="noopener noreferrer">개인정보처리방침</a></p>
     {support && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(support) && <p><a href={`mailto:${support}`}>문의하기</a></p>}
   </Card></>;
 }

@@ -439,3 +439,56 @@ test('보호자 현황 재조회에서 공유 동의가 없어지면 이전 현�
   await page.getByRole('button', { name: '가족 현황 다시 불러오기' }).click();
   await expect(page.getByText('시험 사용자님의 오늘')).toBeVisible();
 });
+
+
+test('웹 설치 정보와 아이콘은 실제 이미지로 제공된다', async ({ page }) => {
+  await fixture(page);
+  await page.goto('/');
+  const manifestPath = await page.locator('link[rel="manifest"]').getAttribute('href');
+  const manifestURL = new URL(manifestPath!, page.url()).href;
+  const response = await page.request.get(manifestURL);
+  expect(response.ok()).toBe(true);
+  const manifest = await response.json();
+  for (const icon of manifest.icons) {
+    const result = await page.request.get(new URL(icon.src, manifestURL).href);
+    expect(result.ok()).toBe(true);
+    expect(result.headers()['content-type']).toContain('image/png');
+    const body = await result.body();
+    expect(body.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  }
+  for (const rel of ['icon', 'apple-touch-icon']) {
+    const href = await page.locator(`link[rel="${rel}"]`).getAttribute('href');
+    const result = await page.request.get(new URL(href!, page.url()).href);
+    expect(result.headers()['content-type']).toContain('image/png');
+  }
+});
+
+test('public privacy page works without login and ignores an expired saved session', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('sb-denturecare-test-auth-token', JSON.stringify({ access_token: 'expired', refresh_token: 'expired', expires_at: 1 })));
+  const requests: string[] = [];
+  await page.route('https://denturecare-test.supabase.co/**', route => {
+    requests.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(privacyNotice) });
+  });
+  await page.goto('/privacy/');
+  await expect(page.getByRole('heading', { name: '개인정보처리방침', exact: true })).toBeVisible();
+  await expect(page.getByText(`운영자: ${privacyNotice.document.operator}`, { exact: true })).toBeVisible();
+  await expect(page.getByText(`시행일: ${privacyNotice.document.effectiveDate} · 버전: ${privacyNotice.version}`)).toBeVisible();
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.every(path => path === '/rest/v1/rpc/get_privacy_notice')).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(page.getByRole('link', { name: '공개된 개인정보처리방침 열기' })).toHaveCount(0);
+});
+
+test('public privacy page distinguishes unpublished notice and network failure, then retries', async ({ page }) => {
+  let response: 'empty' | 'error' | 'notice' = 'empty';
+  await page.route('https://denturecare-test.supabase.co/**', route => route.fulfill({ status: response === 'error' ? 503 : 200, contentType: 'application/json', body: JSON.stringify(response === 'notice' ? privacyNotice : response === 'empty' ? null : { message: 'unavailable' }) }));
+  await page.goto('/privacy');
+  await expect(page.getByRole('heading', { name: '개인정보 안내를 준비하고 있어요' })).toBeVisible();
+  response = 'error';
+  await page.getByRole('button', { name: '게시 여부 다시 확인' }).click();
+  await expect(page.getByRole('alert')).toContainText('불러오지 못했어요');
+  response = 'notice';
+  await page.getByRole('button', { name: '다시 불러오기' }).click();
+  await expect(page.getByText(`운영자: ${privacyNotice.document.operator}`, { exact: true })).toBeVisible();
+});
